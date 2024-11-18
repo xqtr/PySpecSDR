@@ -9,7 +9,6 @@
 ```
 
 ## PySpecSDR - Python SDR Spectrum Analyzer and Signal Processor
----
 
 A feature-rich Software Defined Radio (SDR) spectrum analyzer with real-time 
 visualization, demodulation, and signal analysis capabilities.
