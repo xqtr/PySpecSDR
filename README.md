@@ -64,6 +64,8 @@ License: GPL-3.0-or-later
 * Better management for bookmarks
 
 ## Showcase
+![spectrum-vis](https://cp737.net/files/pyspecsdr/spectrum.png)
+
 ![band-presets](https://cp737.net/files/pyspecsdr/bands.png)
 
 Select Band to adjust frequncy and bandwidth
@@ -96,7 +98,6 @@ Scanning...
 
 Results. Select to listen.
 
-![spectrum-vis](https://cp737.net/files/pyspecsdr/spectrum.png)
 ![surface-vis](https://cp737.net/files/pyspecsdr/surface.png)
 ![vector-vis](https://cp737.net/files/pyspecsdr/vector.png)
 ![waterfall-vis](https://cp737.net/files/pyspecsdr/waterfall.png)
