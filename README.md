@@ -1,13 +1,15 @@
 # PySpecSDR
+```
    ____        ____                  ____  ____  ____  
   |  _ \ _   _/ ___| _ __   ___  ___/ ___||  _ \|  _ \ 
   | |_) | | | \___ \| '_ \ / _ \/ __\___ \| | | | |_) |
   |  __/| |_| |___) | |_) |  __/ (__ ___) | |_| |  _ < 
   |_|    \__, |____/| .__/ \___|\___|____/|____/|_| \_\
          |___/      |_|                                
+```
 
-PySpecSDR - Python SDR Spectrum Analyzer and Signal Processor
-===========================================================
+## PySpecSDR - Python SDR Spectrum Analyzer and Signal Processor
+---
 
 A feature-rich Software Defined Radio (SDR) spectrum analyzer with real-time 
 visualization, demodulation, and signal analysis capabilities.
