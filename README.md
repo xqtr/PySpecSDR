@@ -65,13 +65,21 @@ License: GPL-3.0-or-later
 
 ## Showcase
 ![band-presets](https://cp737.net/files/pyspecsdr/bands.png)
+[Select Band to adjust frequncy and bandwidth]
 ![demodulation-modes](https://cp737.net/files/pyspecsdr/demodulation.png)
+[Select demodulation mode]
 ![gradient-vis](https://cp737.net/files/pyspecsdr/gradient.png)
+[Gradient Visualization mode]
 ![persistent-vis](https://cp737.net/files/pyspecsdr/persistent.png)
+[Persistent Visualization mode]
 ![scanner1](https://cp737.net/files/pyspecsdr/scanner1.png)
+[Select signal strength to scan for...]
 ![scanner2](https://cp737.net/files/pyspecsdr/scanner2.png)
+[Select band...]
 ![scanner3](https://cp737.net/files/pyspecsdr/scanner3.png)
+[Scanning...]
 ![scanner4](https://cp737.net/files/pyspecsdr/scanner4.png)
+[Results. Select to listen.]
 ![spectrum-vis](https://cp737.net/files/pyspecsdr/spectrum.png)
 ![surface-vis](https://cp737.net/files/pyspecsdr/surface.png)
 ![vector-vis](https://cp737.net/files/pyspecsdr/vector.png)
