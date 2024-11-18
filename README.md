@@ -102,4 +102,21 @@ Results. Select to listen.
 ![waterfall-vis](https://cp737.net/files/pyspecsdr/waterfall.png)
 
 
+## Troubleshooting
+```
+1. If you get "ImportError: No module named 'rtlsdr'":
+   - Check that pyrtlsdr is installed: pip3 install pyrtlsdr
+2. If you get "usb.core.NoBackendError":
+   - Install libusb: pip3 install libusb1
+3. If you get "RTLSDRError: No device found":
+   - Check device connection
+   - Check udev rules (Linux)
+   - Check driver installation (Windows)
+4. If you get "OSError: PortAudio library not found":
+   - Install PortAudio:
+     Ubuntu/Debian: sudo apt-get install libportaudio2
+     Fedora: sudo dnf install portaudio-devel
+     Arch: sudo pacman -S portaudio
+     macOS: brew install portaudio
+```
 Copyright (c) 2024 [XQTR]
