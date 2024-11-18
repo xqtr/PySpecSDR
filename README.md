@@ -63,4 +63,19 @@ License: GPL-3.0-or-later
 * Add recording status to all visual modes
 * Better management for bookmarks
 
+## Showcase
+![band-presets](https://cp737.net/files/pyspecsdr/bands.png)
+![demodulation-modes](https://cp737.net/files/pyspecsdr/demodulation.png)
+![gradient-vis](https://cp737.net/files/pyspecsdr/gradient.png)
+![persistent-vis](https://cp737.net/files/pyspecsdr/persistent.png)
+![scanner1](https://cp737.net/files/pyspecsdr/scanner1.png)
+![scanner2](https://cp737.net/files/pyspecsdr/scanner2.png)
+![scanner3](https://cp737.net/files/pyspecsdr/scanner3.png)
+![scanner4](https://cp737.net/files/pyspecsdr/scanner4.png)
+![spectrum-vis](https://cp737.net/files/pyspecsdr/spectrum.png)
+![surface-vis](https://cp737.net/files/pyspecsdr/surface.png)
+![vector-vis](https://cp737.net/files/pyspecsdr/vector.png)
+![waterfall-vis](https://cp737.net/files/pyspecsdr/waterfall.png)
+
+
 Copyright (c) 2024 [XQTR]
