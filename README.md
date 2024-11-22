@@ -58,10 +58,66 @@ License: GPL-3.0-or-later
 * Left: Decrease Freq. by 0.5MHz
 * Rigt: Increase Freq. by 0.5MHz
 
+## PySpecSDR Changelog
+
+### Version 1.0.1 (2024/11/22)
+
+Features Added:
++ Added PPM (Parts Per Million) frequency correction functionality
+  - New 'P'/'p' keys to increase/decrease PPM correction
+  - New 'O' key to set exact PPM correction value
+  - PPM value displayed in header
+  - PPM settings saved/loaded with other configurations
+
++ Added more band presets for various radio services
+  - Amateur radio bands (160m through 23cm)
+  - Shortwave radio
+  - Citizens Band (CB)
+  - PMR446
+  - Marine VHF
+  - GSM bands
+  - DECT
+  - LTE bands
+  - WiFi 2.4/5 GHz
+  - Digital radio services
+
++ Added scrolling capability in Help screen
+  - Up/Down arrow keys for line-by-line scrolling
+  - PgUp/PgDn for page scrolling
+  - Visual scrollbar indicator
+
++ Added pagination to scan results and bookmarks
+  - Next/Previous page navigation
+  - Page number indicators
+  - Improved readability for long lists
+
++ Added ability to delete bookmarks
+  - 'd' key in bookmarks menu to delete entries
+  - Confirmation prompt for deletion
+
++ Added feature to recall last scan results
+  - 'C' key shows results from most recent frequency scan
+  - Maintains scan history between sessions
+
+Improvements:
+! All characters now use lower ASCII for better compatibility
+! All visual modes now have consistent frequency labels
+! Improved signal detection algorithm
+! Fixed/standardized look across all display modes
+
+Bug Fixes:
+! Fixed inconsistent character display in some terminals
+! Fixed frequency label alignment issues
+! Fixed bookmark sorting and display
+! Improved error handling for PPM settings
+! Fixed memory leak in waterfall display
+
+Note: This version maintains backward compatibility with existing configuration files and bookmarks.
+
 ## ToDo:
 * Fix bugs
 * Add recording status to all visual modes
-* Better management for bookmarks
+* Better management for bookmarks (DONE)
 
 ## Showcase
 ![spectrum-vis](https://cp737.net/files/pyspecsdr/spectrum.png)

@@ -65,6 +65,22 @@ Key Bindings:
     q - Quit
     h - Show help menu
     For full list of controls, press 'h' while running
+    
+    2024/11/18 // Initial Release
+    2024/11/22 // Ver 1.0.1
+      + Added PPM function
+      ! Fixed: All characters are lower ASCII
+      + Added more band presets
+      ! Fixed: All visual modes have frequency labels and the same look
+      + Added scrolling capability in the Help screen 
+      + Added pagination to scan results
+      + Pressing the C key, the last scan results will re-appear
+      + Added pagination to Bookmarks page
+      + Added the ability to delete a bookmark. To edit one, just re-insert
+        a bookmark with the same description
+      ! Fixed/Improved signal detection (hopefully)   
+      
+    
 '''
 
 import numpy as np
@@ -115,6 +131,43 @@ SCAN_ACTIVE = False    # Global flag for scan state
 
 # Add near the top of the file with other constants
 BAND_PRESETS = {
+    # Existing bands
+    'FM': (88e6, 108e6, "FM Radio"),
+    'AM': (535e3, 1.7e6, "AM Radio"),
+    'AIR': (118e6, 137e6, "Aircraft Band"),
+    'WX': (162.4e6, 162.55e6, "Weather Radio"),
+    'HAM2M': (144e6, 148e6, "2m Amateur Radio"),
+    'HAM70CM': (420e6, 450e6, "70cm Amateur Radio"),
+    'NOAA': (137e6, 138e6, "NOAA Weather Satellites"),
+    'ADS-B': (1090e6, 1090e6, "ADS-B Aircraft Tracking"),
+    'DAB': (174e6, 240e6, "Digital Audio Broadcasting"),
+    'ISM': (433.05e6, 434.79e6, "ISM Band"),
+    
+    # Additional bands
+    'HAM160M': (1.8e6, 2.0e6, "160m Amateur Radio"),
+    'HAM80M': (3.5e6, 4.0e6, "80m Amateur Radio"),
+    'HAM40M': (7.0e6, 7.3e6, "40m Amateur Radio"),
+    'HAM20M': (14.0e6, 14.35e6, "20m Amateur Radio"),
+    'HAM15M': (21.0e6, 21.45e6, "15m Amateur Radio"),
+    'HAM10M': (28.0e6, 29.7e6, "10m Amateur Radio"),
+    'HAM6M': (50e6, 54e6, "6m Amateur Radio"),
+    'HAM1.25M': (222e6, 225e6, "1.25m Amateur Radio"),
+    'HAM33CM': (902e6, 928e6, "33cm Amateur Radio"),
+    'HAM23CM': (1240e6, 1300e6, "23cm Amateur Radio"),
+    'SW': (2.3e6, 26.1e6, "Shortwave Radio"),
+    'CB': (26.965e6, 27.405e6, "Citizens Band Radio"),
+    'PMR': (446e6, 446.2e6, "PMR446 (Europe)"),
+    'MARINE': (156e6, 162e6, "Marine VHF"),
+    'GSM900': (925e6, 960e6, "GSM900 Downlink"),
+    'GSM1800': (1805e6, 1880e6, "GSM1800 Downlink"),
+    'DECT': (1880e6, 1900e6, "DECT Cordless Phones"),
+    'LTE800': (791e6, 821e6, "LTE Band 20 Downlink"),
+    'LTE2600': (2620e6, 2690e6, "LTE Band 7 Downlink"),
+    'WIFI2.4': (2412e6, 2484e6, "WiFi 2.4 GHz"),
+    'WIFI5': (5170e6, 5835e6, "WiFi 5 GHz"),
+    'LPDFM': (87.9e6, 92e6, "Low Power FM"),
+    'DRM': (3.95e6, 26.1e6, "Digital Radio Mondiale"),
+    'DAB+': (174e6, 230e6, "DAB+ Digital Radio"),
     'FM': (88e6, 108e6, "FM Radio"),
     'AM': (535e3, 1.7e6, "AM Radio"),
     'AIR': (118e6, 137e6, "Aircraft Band"),
@@ -208,6 +261,12 @@ GRADIENT_COLORS = [
 DISPLAY_MODES = ['SPECTRUM', 'WATERFALL', 'PERSISTENCE', 'SURFACE', 'GRADIENT', 'VECTOR']
 current_display_mode = 'SPECTRUM'
 
+# Add near the top with other constants
+DEFAULT_PPM = 0  # Default PPM correction value
+
+# Add near the top with other global variables
+LAST_SCAN_RESULTS = []  # Store the last scan results
+
 def init_colors():
     curses.start_color()
     curses.init_pair(1, curses.COLOR_YELLOW, curses.COLOR_BLACK)
@@ -221,77 +280,203 @@ def init_colors():
         curses.init_pair(10 + i, color, curses.COLOR_BLACK)
 
 def showhelp(stdscr):
-    stdscr.clear()
-    stdscr.addstr("Help:   q - Quit\n")
-    stdscr.addstr("B/b - increase/reduce bandwidth\n")
-    stdscr.addstr("F/f - Change frequency up/down\n")
-    stdscr.addstr("S/s - Increase/decrease samples\n")
-    stdscr.addstr("G/g - Increase/decrease gain\n")
-    stdscr.addstr("T/t - Increase/Decrease step\n")
-    stdscr.addstr("x - Set Frequency\n")
-    stdscr.addstr("k/l - Save/Load bookmark\n")
-    stdscr.addstr("a - Toggle audio on/off\n")
-    stdscr.addstr("Up/Down - Inc/decrease freq. by 1 MHz\n")
-    stdscr.addstr("Right/Left - Inc/decrease freq. by 0.5 MHz\n")
-    stdscr.addstr("R - Start/Stop audio recording\n")
-    stdscr.addstr("A - Toggle AGC\n")
-    stdscr.addstr("p - Band presets\n")
-    stdscr.addstr("c - Frequency scanner\n")
-    stdscr.addstr("w - Save settings\n")
-    stdscr.addstr("d - Demodulation modes\n")
-    stdscr.addstr("m - Cycle display modes\n")
-    stdscr.addstr("1/2/3/4/5 - Choose display mode\n")
-    stdscr.addstr("Press a key to continue\n")
+    """Display help information with scrolling capability"""
+    max_height, max_width = stdscr.getmaxyx()
+    
+    # Define help content with categories
+    help_content = [
+        ("General Controls", [
+            ("q", "Quit program"),
+            ("h", "Show this help screen"),
+            ("w", "Save current settings"),
+            ("m", "Cycle through display modes"),
+            ("1-6", "Quick switch display modes"),
+        ]),
+        ("Frequency Controls", [
+            ("F/f", "Change frequency up/down by step"),
+            ("Up/Down", "Change frequency by 1 MHz"),
+            ("Right/Left", "Change frequency by 0.5 MHz"),
+            ("x", "Set exact frequency"),
+            ("T/t", "Increase/decrease frequency step"),
+        ]),
+        ("Signal Controls", [
+            ("B/b", "Increase/reduce bandwidth"),
+            ("S/s", "Increase/decrease samples"),
+            ("G/g", "Increase/decrease gain"),
+            ("A", "Toggle Automatic Gain Control (AGC)"),
+        ]),
+        ("Frequency Correction", [
+            ("P/p", "Increase/decrease PPM correction"),
+            ("O", "Set exact PPM correction value"),
+        ]),
+        ("Audio Controls", [
+            ("a", "Toggle audio on/off"),
+            ("d", "Change demodulation mode"),
+            ("R", "Start/Stop audio recording"),
+        ]),
+        ("Frequency Management", [
+            ("k/l", "Save/Load frequency bookmark"),
+            ("n", "Access band presets"),
+            ("c", "Start frequency scanner"),
+            ("C", "Show scan results"),
+        ]),
+    ]
 
-    stdscr.nodelay(False)
-    stdscr.getch()
+    # Calculate total content height
+    total_height = sum(2 + len(section[1]) for section in help_content) + 15
+    
+    # Initialize scroll position
+    scroll_pos = 0
+    max_scroll = max(0, total_height - (max_height - 2))
+    
+    stdscr.nodelay(0)
+    
+    while True:
+        # Clear screen
+        stdscr.clear()
+        current_line = 0
+        
+        # Draw title
+        title = "PySpecSDR Help"
+        stdscr.addstr(0, 2, title, curses.color_pair(1) | curses.A_BOLD)
+        current_line += 1
+        
+        # Draw horizontal line
+        stdscr.addstr(1, 1, "-" * (max_width - 2), curses.color_pair(2))
+        current_line += 1
+        
+        # Draw visible content
+        visible_line = 0
+        startline = 2
+        for section_title, commands in help_content:
+            if current_line - scroll_pos >= 0 and current_line - scroll_pos < max_height - 3:
+                try:
+                    stdscr.addstr(startline + current_line - scroll_pos, 2, 
+                                "+" + "-" * (len(section_title) + 2) + "+", 
+                                curses.color_pair(4))
+                except curses.error:
+                    pass
+            current_line += 1
+            
+            if current_line - scroll_pos >= 0 and current_line - scroll_pos < max_height - 3:
+                try:
+                    stdscr.addstr(startline + current_line - scroll_pos, 2, 
+                                "| " + section_title + " |", 
+                                curses.color_pair(4) | curses.A_BOLD)
+                except curses.error:
+                    pass
+            current_line += 1
+            
+            if current_line - scroll_pos >= 0 and current_line - scroll_pos < max_height - 3:
+                try:
+                    stdscr.addstr(startline + current_line - scroll_pos, 2, 
+                                "+" + "-" * (len(section_title) + 2) + "+", 
+                                curses.color_pair(4))
+                except curses.error:
+                    pass
+            current_line += 1
+            
+            for key, description in commands:
+                if current_line - scroll_pos >= 0 and current_line - scroll_pos < max_height - 3:
+                    try:
+                        key_str = f"[ {key:6} ]"
+                        stdscr.addstr(startline + current_line - scroll_pos, 4, key_str, 
+                                    curses.color_pair(1) | curses.A_BOLD)
+                        stdscr.addstr(startline + current_line - scroll_pos, 15, "->", 
+                                    curses.color_pair(2))
+                        stdscr.addstr(startline + current_line - scroll_pos, 18, description, 
+                                    curses.color_pair(2))
+                    except curses.error:
+                        pass
+                current_line += 1
+            current_line += 1
+
+        # Draw scrollbar
+        if total_height > max_height - 2:
+            for y in range(2, max_height - 1):
+                pos = int((y - 2) * total_height / (max_height - 3))
+                if pos >= scroll_pos and pos <= scroll_pos + max_height:
+                    char = "#"
+                else:
+                    char = "|"
+                try:
+                    stdscr.addstr(y, max_width - 1, char, curses.color_pair(2))
+                except curses.error:
+                    pass
+
+        # Draw navigation instructions
+        nav_text = "[ UP/DOWN | PgUp/PgDn | q:Exit ]"
+        nav_pos = (max_width - len(nav_text)) // 2
+        try:
+            stdscr.addstr(max_height - 1, nav_pos, nav_text, 
+                         curses.color_pair(5) | curses.A_BOLD)
+        except curses.error:
+            pass
+
+        stdscr.refresh()
+        
+        # Handle input
+        key = stdscr.getch()
+        if key == ord('q'):
+            break
+        elif key == curses.KEY_UP and scroll_pos > 0:
+            scroll_pos = max(0, scroll_pos - 1)
+        elif key == curses.KEY_DOWN and scroll_pos < max_scroll:
+            scroll_pos = min(max_scroll, scroll_pos + 1)
+        elif key == curses.KEY_PPAGE:  # Page Up
+            scroll_pos = max(0, scroll_pos - (max_height - 3))
+        elif key == curses.KEY_NPAGE:  # Page Down
+            scroll_pos = min(max_scroll, scroll_pos + (max_height - 3))
+    
+    # Restore original nodelay state
     stdscr.nodelay(True)
-    stdscr.clear()
 
 def setfreq(stdscr):
-    max_height, max_width = stdscr.getmaxyx()
-    stdscr.addstr(0,0," "*(max_width-1))
+    draw_clearheader(stdscr)
     stdscr.addstr(0,0,"Enter frequency in Hz: ",curses.color_pair(1) | curses.A_BOLD)
     # Enable echo and cursor
     curses.echo()
     curses.curs_set(1)
     stdscr.nodelay(False) 
     freq = stdscr.getstr()
+    draw_clearheader(stdscr)
     # Disable echo and cursor after input
     curses.noecho()
     curses.curs_set(0)
     stdscr.nodelay(True)
     return freq.decode('utf-8')  # Convert bytes to string
 
-def draw_spectrogram(stdscr, freq_data, frequencies, center_freq, bandwidth, gain, step, is_recording=False, recording_duration=None):
-    """
-    Draw the spectrogram and header information in the terminal using curses.
-    """
-    global SAMPLES
-    stdscr.clear()
+
+def draw_clearheader(stdscr):
+    max_height, max_width = stdscr.getmaxyx()
+    stdscr.addstr(0, 0, " "*(max_width-1))
+    stdscr.addstr(1, 0, " "*(max_width-1))
+    
+def draw_header(stdscr, freq_data, frequencies, center_freq, bandwidth, gain, step, 
+                    sdr, is_recording=False, recording_duration=None):
+    
     max_height, max_width = stdscr.getmaxyx()
 
-    # Modify the header display to accommodate recording status
     x_pos = 0
     if is_recording:
         recording_text = f"Recording: {recording_duration:.1f}s"
         stdscr.addstr(0, max_width - len(recording_text) - 1, recording_text, 
                      curses.color_pair(3) | curses.A_BOLD)
-        # Adjust available width for other header items
         available_width = max_width - len(recording_text) - 2
     else:
         available_width = max_width
-
+    
     # Draw the colored header
     freq_text = f"req: {center_freq/1e6:.6f} MHz"
     bw_text = f"andwidth: {bandwidth/1e6:.2f} MHz"
     gain_text = f"ain: {gain}"
     samples_text = f"amples: {2**SAMPLES}"
     step_text = f"ep: {step/1e6:.3f} MHz"
+    ppm_text = f"PM: {sdr.ppm}"  # Add PPM text
     
     x_pos = 0
     stdscr.addstr(0, x_pos, "F", curses.color_pair(1) | curses.A_BOLD)
-    stdscr.addstr(0, x_pos+1, freq_text, curses.color_pair(2) )
+    stdscr.addstr(0, x_pos+1, freq_text, curses.color_pair(2))
     x_pos += len(freq_text) + 3
     stdscr.addstr(0, x_pos, "B", curses.color_pair(1) | curses.A_BOLD)
     stdscr.addstr(0, x_pos+1, bw_text, curses.color_pair(2))
@@ -306,94 +491,15 @@ def draw_spectrogram(stdscr, freq_data, frequencies, center_freq, bandwidth, gai
     stdscr.addstr(1, x_pos+1, "t", curses.color_pair(1) | curses.A_BOLD)
     stdscr.addstr(1, x_pos+2, step_text, curses.color_pair(2))
     x_pos += len(step_text) + 4
-    stdscr.addstr(1, x_pos, "H", curses.color_pair(1) | curses.A_BOLD)
-    stdscr.addstr(1, x_pos+1, "elp", curses.color_pair(2))
-
-    # Select the range of frequencies within the desired bandwidth
-    half_bw = bandwidth / 2
-    mask = (frequencies >= center_freq - half_bw) & (frequencies <= center_freq + half_bw)
-
-    if not np.any(mask):
-        stdscr.addstr(2, 0, "No data to display in the selected range.", curses.A_BOLD)
-        stdscr.refresh()
-        return
-
-    freq_data = freq_data[mask]
-    frequencies = frequencies[mask]
-
-    # Resample the data to fit the screen width
-    resampled_data = np.interp(
-        np.linspace(0, len(freq_data) - 1, max_width - 1),
-        np.arange(len(freq_data)),
-        freq_data
-    )
-    resampled_freqs = np.linspace(
-        center_freq - half_bw,
-        center_freq + half_bw,
-        max_width - 1
-    )
-
-    # Normalize data for spectrogram display
-    min_val = np.min(resampled_data[np.isfinite(resampled_data)])  # Ignore NaN values
-    max_val = np.max(resampled_data[np.isfinite(resampled_data)])  # Ignore NaN values
+    try:
+        stdscr.addstr(1, x_pos, "P", curses.color_pair(1) | curses.A_BOLD)
+        stdscr.addstr(1, x_pos+1, ppm_text, curses.color_pair(2))
+    except curses.error:
+        pass  # Ignore if screen is too small
+    #x_pos += len(ppm_text) + 3
+    #stdscr.addstr(1, x_pos, "H", curses.color_pair(1) | curses.A_BOLD)
+    #stdscr.addstr(1, x_pos+1, "elp", curses.color_pair(2))
     
-    # Handle case where min_val equals max_val
-    if min_val == max_val:
-        normalized_data = np.zeros_like(resampled_data)
-    else:
-        # Replace NaN values with min_val before normalizing
-        resampled_data = np.nan_to_num(resampled_data, nan=min_val)
-        normalized_data = (resampled_data - min_val) / (max_val - min_val)
-
-    # Ensure all values are finite
-    normalized_data = np.clip(normalized_data, 0, 1)
-
-    # Add dB scale on the y-axis
-    db_range = max_val - min_val
-    db_step = db_range / (max_height - 4)
-    for y in range(3, max_height - 1):
-        db_value = max_val - (y - 3) * db_step
-        if y % 3 == 0:
-            db_label = f"{db_value:4.0f}dB"
-            try:
-                stdscr.addstr(y, 0, db_label, curses.color_pair(2))
-            except curses.error:
-                pass
-
-    # Adjust the x position of the spectrogram
-    x_offset = 7
-    for x in range(len(normalized_data)):
-        value = normalized_data[x]
-        if np.isfinite(value):  # Check if value is valid
-            height = int(value * (max_height - 3))
-            
-            # Draw vertical bars with simple ASCII characters
-            for y in range(max_height - 2, max_height - 2 - height, -1):
-                intensity = value * (1 - ((max_height - 2 - y) / max_height))
-                char_idx = min(len(INTENSITY_CHARS) - 1, 
-                             int(intensity * len(INTENSITY_CHARS)))
-                
-                try:
-                    stdscr.addstr(y, x + x_offset, INTENSITY_CHARS[char_idx])
-                except curses.error:
-                    pass
-
-    # Adjust frequency labels position
-    step = max(1, (max_width - 1 - x_offset) // 5)
-    label_positions = range(x_offset, max_width - 1, step)
-    label_freqs = np.linspace(center_freq - half_bw, center_freq + half_bw, len(label_positions))
-    
-    label_line = ""
-    current_pos = 0
-    for pos, freq in zip(label_positions, label_freqs):
-        label = f"{freq/1e6:.2f}MHz"
-        if current_pos + len(label) <= max_width - 1:
-            label_line += " " * (pos - current_pos) + label
-            current_pos = pos + len(label)
-
-    stdscr.addstr(max_height - 1, 0, label_line[:max_width - 1])
-    stdscr.refresh()
-
     # Add signal strength indicator
     peak_power = np.max(freq_data)
     avg_power = np.mean(freq_data)
@@ -405,6 +511,85 @@ def draw_spectrogram(stdscr, freq_data, frequencies, center_freq, bandwidth, gai
     stdscr.addstr(1, max_width - len(agc_text) - len(strength_text) - 3, 
                  agc_text, 
                  curses.color_pair(4) if AGC_ENABLED else curses.color_pair(2))
+
+def draw_spectrogram(stdscr, freq_data, frequencies, center_freq, bandwidth, gain, step, 
+                    sdr, is_recording=False, recording_duration=None):
+    """Draw the spectrum display"""
+    max_height, max_width = stdscr.getmaxyx()
+    
+    # Calculate display dimensions
+    display_width = max_width - 10  # Reserve space for dB scale
+    display_height = max_height - 4  # Reserve space for header and labels
+    
+    # Clear the display area (preserve header)
+    for y in range(2, max_height-1):
+        try:
+            stdscr.addstr(y, 0, " " * (max_width-1), curses.color_pair(1))
+        except curses.error:
+            pass
+    
+    # Normalize data for display
+    min_val = np.min(freq_data[np.isfinite(freq_data)])
+    max_val = np.max(freq_data[np.isfinite(freq_data)])
+    
+    # Draw dB scale on the left
+    for i in range(display_height):
+        db_value = max_val - (i * (max_val - min_val) / display_height)
+        if i % 3 == 0:  # Show scale every 3 lines
+            db_label = f"{db_value:4.0f}dB"
+            try:
+                stdscr.addstr(i + 2, 0, db_label, curses.color_pair(2))
+                # Add scale markers
+                stdscr.addstr(i + 2, 8, "|", curses.color_pair(2))
+            except curses.error:
+                pass
+
+    # Resample data to fit display width
+    resampled = np.interp(
+        np.linspace(0, len(freq_data) - 1, display_width),
+        np.arange(len(freq_data)),
+        freq_data
+    )
+    
+    # Draw spectrum
+    for x, value in enumerate(resampled):
+        if np.isfinite(value):
+            # Calculate height for this value
+            normalized = (value - min_val) / (max_val - min_val)
+            height = int(normalized * display_height)
+            
+            # Draw vertical bar using ASCII characters
+            for y in range(display_height - height, display_height):
+                try:
+                    if normalized > 0.75:
+                        char = "#"
+                    elif normalized > 0.5:
+                        char = "="
+                    elif normalized > 0.25:
+                        char = "-"
+                    else:
+                        char = "."
+                    
+                    stdscr.addstr(y + 2, x + 9, char, curses.color_pair(1))
+                except curses.error:
+                    pass
+
+    # Draw frequency labels
+    half_bw = bandwidth / 2
+    freq_step = bandwidth / 5
+    
+    # Draw horizontal axis using ASCII
+    try:
+        stdscr.addstr(display_height + 2, 9, "+" + "-" * (display_width - 1), 
+                     curses.color_pair(2))
+    except curses.error:
+        pass
+    
+    # Use standardized frequency labels
+    draw_frequency_labels(stdscr, center_freq, bandwidth, display_height, display_width)
+
+    # Refresh the screen
+    stdscr.refresh()
 
 def demodulate_signal(samples, sample_rate, mode='FM'):
     """Advanced demodulation function supporting multiple modes"""
@@ -525,12 +710,13 @@ def save_bookmark(name, freq):
 
 def add_bookmark(stdscr, freq):
     max_height, max_width = stdscr.getmaxyx()
-    stdscr.addstr(0, 0, " "*(max_width-1))
+    draw_clearheader(stdscr)
     stdscr.addstr(0, 0, "Enter bookmark name: ", curses.color_pair(1) | curses.A_BOLD)
     curses.echo()
     curses.curs_set(1)
     stdscr.nodelay(False)
     name = stdscr.getstr().decode('utf-8')
+    draw_clearheader(stdscr)
     curses.noecho()
     curses.curs_set(0)
     stdscr.nodelay(True)
@@ -538,29 +724,102 @@ def add_bookmark(stdscr, freq):
         save_bookmark(name, freq)
 
 def show_bookmarks(stdscr):
+    """Display bookmarks with pagination and deletion capability"""
     bookmarks = load_bookmarks()
     if not bookmarks:
+        show_popup_msg(stdscr, "No bookmarks found!", error=True)
         return None
     
-    stdscr.clear()
-    stdscr.addstr("Bookmarks:\n\n")
-    for i, (name, freq) in enumerate(bookmarks.items()):
-        stdscr.addstr(f"{i+1}. {name}: {freq/1e6:.3f} MHz\n")
-    stdscr.addstr("\nEnter number to select (or any other key to cancel): ")
-    curses.echo()
-    curses.curs_set(1)
-
-    stdscr.nodelay(False)
-    try:
-        choice = int(stdscr.getstr().decode('utf-8'))
-        if 1 <= choice <= len(bookmarks):
-            return list(bookmarks.values())[choice-1]
-    except (ValueError, IndexError):
-        pass
-    finally:
-        stdscr.nodelay(True)
-        curses.noecho()
-        curses.curs_set(0)
+    # Initialize pagination variables
+    max_height, max_width = stdscr.getmaxyx()
+    items_per_page = max_height - 7  # Reserve space for header and footer
+    total_items = len(bookmarks)
+    total_pages = (total_items + items_per_page - 1) // items_per_page
+    current_page = 0
+    
+    while True:
+        stdscr.clear()
+        
+        # Draw header
+        header = "Bookmarks"
+        stdscr.addstr(0, 2, header, curses.color_pair(1) | curses.A_BOLD)
+        stdscr.addstr(1, 2, "-" * len(header), curses.color_pair(2))
+        
+        # Calculate slice for current page
+        start_idx = current_page * items_per_page
+        end_idx = min(start_idx + items_per_page, total_items)
+        current_items = list(bookmarks.items())[start_idx:end_idx]
+        
+        # Display bookmarks for current page
+        for i, (name, freq) in enumerate(current_items, 1):
+            abs_index = start_idx + i
+            line = f"{abs_index:2d}. {name:<20}: {freq/1e6:.3f} MHz"
+            try:
+                stdscr.addstr(i + 2, 2, line, curses.color_pair(2))
+            except curses.error:
+                pass
+        
+        # Draw footer with navigation help
+        footer = f"Page {current_page + 1}/{total_pages} | [n]ext/[p]rev page | [d]elete | [q]uit | Enter number to select"
+        try:
+            stdscr.addstr(max_height-2, 2, footer, curses.color_pair(5))
+            stdscr.addstr(max_height-1, 2, "Choice: ", curses.color_pair(1) | curses.A_BOLD)
+        except curses.error:
+            pass
+        
+        # Handle input
+        curses.echo()
+        curses.curs_set(1)
+        stdscr.nodelay(False)
+        
+        try:
+            choice = stdscr.getstr().decode('utf-8').lower()
+            
+            if choice == 'q':
+                break
+            elif choice == 'n' and current_page < total_pages - 1:
+                current_page += 1
+                continue
+            elif choice == 'p' and current_page > 0:
+                current_page -= 1
+                continue
+            elif choice == 'd':
+                # Handle bookmark deletion
+                stdscr.addstr(max_height-1, 2, "Enter number to delete: ", 
+                            curses.color_pair(3) | curses.A_BOLD)
+                try:
+                    del_choice = int(stdscr.getstr().decode('utf-8'))
+                    if 1 <= del_choice <= total_items:
+                        # Get bookmark name and delete it
+                        del_name = list(bookmarks.keys())[del_choice - 1]
+                        del bookmarks[del_name]
+                        # Save updated bookmarks
+                        with open(BOOKMARK_FILE, 'w') as f:
+                            json.dump(bookmarks, f, indent=2)
+                        # Update pagination variables
+                        total_items = len(bookmarks)
+                        total_pages = (total_items + items_per_page - 1) // items_per_page
+                        current_page = min(current_page, total_pages - 1)
+                        show_popup_msg(stdscr, f"Deleted bookmark: {del_name}")
+                        if not bookmarks:
+                            return None
+                except ValueError:
+                    show_popup_msg(stdscr, "Invalid selection!", error=True)
+            else:
+                try:
+                    choice_num = int(choice)
+                    if 1 <= choice_num <= total_items:
+                        return list(bookmarks.values())[choice_num - 1]
+                except ValueError:
+                    show_popup_msg(stdscr, "Invalid selection!", error=True)
+                    
+        except curses.error:
+            pass
+        finally:
+            stdscr.nodelay(True)
+            curses.noecho()
+            curses.curs_set(0)
+    
     return None
 
 def record_signal(sdr, duration, filename):
@@ -611,7 +870,8 @@ def save_settings(sdr, bandwidth, freq_step, samples, agc_enabled):
         'freq_step': str(freq_step),
         'samples': str(samples),
         'agc_enabled': str(agc_enabled),
-        'current_band': str(current_band) if current_band else ''
+        'current_band': str(current_band) if current_band else '',
+        'ppm': str(sdr.ppm)  # Add PPM to saved settings
     }
     
     with open(SETTINGS_FILE, 'w') as configfile:
@@ -628,7 +888,8 @@ def load_settings():
         'freq_step': '0.1e6',
         'samples': '7',
         'agc_enabled': 'False',
-        'current_band': ''
+        'current_band': '',
+        'ppm': '0'  # Add default PPM value
     }
     
     if os.path.exists(SETTINGS_FILE):
@@ -642,7 +903,8 @@ def load_settings():
                 'freq_step': float(config['SDR'].get('freq_step', default_settings['freq_step'])),
                 'samples': int(config['SDR'].get('samples', default_settings['samples'])),
                 'agc_enabled': config['SDR'].get('agc_enabled', default_settings['agc_enabled']) == 'True',
-                'current_band': config['SDR'].get('current_band', default_settings['current_band'])
+                'current_band': config['SDR'].get('current_band', default_settings['current_band']),
+                'ppm': int(config['SDR'].get('ppm', default_settings['ppm']))
             }
     
     # Convert default settings to appropriate types
@@ -654,7 +916,8 @@ def load_settings():
         'freq_step': float(default_settings['freq_step']),
         'samples': int(default_settings['samples']),
         'agc_enabled': default_settings['agc_enabled'] == 'True',
-        'current_band': default_settings['current_band']
+        'current_band': default_settings['current_band'],
+        'ppm': int(default_settings['ppm'])
     }
 
 def measure_signal_power(samples):
@@ -685,36 +948,93 @@ def adjust_gain(sdr, current_power, gainindex):
             
     return gainindex
 
+def show_popup_msg(stdscr,msg,error=False):
+    draw_clearheader(stdscr)
+    if error:
+        stdscr.addstr(0, 0, msg, curses.color_pair(3))
+    else:
+        stdscr.addstr(0, 0, msg, curses.color_pair(4))
+    stdscr.refresh()
+    time.sleep(2)
+    draw_clearheader(stdscr)
+
 def show_band_presets(stdscr):
-    """Display and select from available band presets"""
-    stdscr.clear()
-    stdscr.addstr("Available Band Presets:\n\n", curses.color_pair(1) | curses.A_BOLD)
+    """Display and select from available band presets with scrolling support"""
+    max_height, max_width = stdscr.getmaxyx()
+    available_height = max_height - 6  # Reserve space for header and footer
     
-    for i, (key, (start, end, description)) in enumerate(BAND_PRESETS.items(), 1):
-        line = f"{i}. {key}: {description} ({start/1e6:.3f}-{end/1e6:.3f} MHz)\n"
-        stdscr.addstr(line, curses.color_pair(2))
+    # Calculate total entries and pages
+    total_entries = len(BAND_PRESETS)
+    entries_per_page = available_height
+    total_pages = (total_entries + entries_per_page - 1) // entries_per_page
+    current_page = 0
     
-    stdscr.addstr("\nEnter number to select (or any other key to cancel): ", 
-                 curses.color_pair(1) | curses.A_BOLD)
-    
-    curses.echo()
-    curses.curs_set(1)
-    stdscr.nodelay(False)
-    
-    try:
-        choice = int(stdscr.getstr().decode('utf-8'))
-        if 1 <= choice <= len(BAND_PRESETS):
-            band_key = list(BAND_PRESETS.keys())[choice-1]
-            start, end, _ = BAND_PRESETS[band_key]
-            center_freq = start + (end - start)/2
-            bandwidth = min(end - start, 2e6)  # Limit bandwidth to 2MHz or band width
-            return center_freq, bandwidth
-    except (ValueError, IndexError):
-        pass
-    finally:
-        stdscr.nodelay(True)
-        curses.noecho()
-        curses.curs_set(0)
+    while True:
+        stdscr.clear()
+        
+        # Draw header
+        header = "Available Band Presets"
+        stdscr.addstr(0, 2, header, curses.color_pair(1) | curses.A_BOLD)
+        stdscr.addstr(1, 2, "-" * len(header), curses.color_pair(2))
+        
+        # Calculate slice for current page
+        start_idx = current_page * entries_per_page
+        end_idx = min(start_idx + entries_per_page, total_entries)
+        
+        # Display current page of presets
+        current_items = list(BAND_PRESETS.items())[start_idx:end_idx]
+        for i, (key, (start, end, description)) in enumerate(current_items, 1):
+            # Calculate absolute index for selection
+            abs_index = start_idx + i
+            line = f"{abs_index:2d}. {key:<8} : {description:<25} ({start/1e6:.3f}-{end/1e6:.3f} MHz)"
+            try:
+                stdscr.addstr(i + 2, 2, line, curses.color_pair(2))
+            except curses.error:
+                pass
+        
+        # Draw footer with navigation help
+        footer = f"Page {current_page + 1}/{total_pages} | [n]ext/[p]rev page | [q]uit | Enter number to select"
+        try:
+            stdscr.addstr(max_height-2, 2, footer, curses.color_pair(5))
+            stdscr.addstr(max_height-1, 2, "Choice: ", curses.color_pair(1) | curses.A_BOLD)
+        except curses.error:
+            pass
+        
+        # Handle input
+        curses.echo()
+        curses.curs_set(1)
+        stdscr.nodelay(False)
+        
+        try:
+            choice = stdscr.getstr().decode('utf-8').lower()
+            
+            if choice == 'q':
+                break
+            elif choice == 'n' and current_page < total_pages - 1:
+                current_page += 1
+                continue
+            elif choice == 'p' and current_page > 0:
+                current_page -= 1
+                continue
+            
+            try:
+                choice_num = int(choice)
+                if 1 <= choice_num <= total_entries:
+                    # Get selected band
+                    band_key = list(BAND_PRESETS.keys())[choice_num - 1]
+                    start, end, _ = BAND_PRESETS[band_key]
+                    center_freq = start + (end - start)/2
+                    bandwidth = min(end - start, 2e6)  # Limit bandwidth to 2MHz or band width
+                    return center_freq, bandwidth
+            except ValueError:
+                pass
+                
+        except curses.error:
+            pass
+        finally:
+            stdscr.nodelay(True)
+            curses.noecho()
+            curses.curs_set(0)
     
     return None, None
 
@@ -723,9 +1043,21 @@ def scan_frequencies(sdr, start_freq, end_freq, threshold, step=SCAN_STEP):
     signals = []
     current_freq = start_freq
     samples_per_scan = int(SCAN_DWELL_TIME * sdr.sample_rate)
+    max_height, max_width = stdscr.getmaxyx()  # Get screen dimensions
+    
+    # Calculate total steps for progress bar
+    total_steps = int((end_freq - start_freq) / step)
+    current_step = 0
     
     while current_freq <= end_freq:
         try:
+            # Update scanning status display
+            draw_scanning_status(stdscr, current_freq, start_freq, end_freq, sdr)
+            
+            # Check for user interrupt ('q' to quit scanning)
+            if stdscr.getch() == ord('q'):
+                break
+            
             sdr.center_freq = current_freq
             time.sleep(0.01)  # Small delay to let SDR settle
             samples = sdr.read_samples(samples_per_scan)
@@ -753,6 +1085,12 @@ def scan_frequencies(sdr, start_freq, end_freq, threshold, step=SCAN_STEP):
                         'bandwidth': bandwidth,
                         'type': signal_type
                     })
+                    
+                    # Show immediate detection
+                    status_msg = f"Signal detected at {current_freq/1e6:.3f} MHz ({signal_type})"
+                    stdscr.addstr(max_height-1, 0, " " * (max_width-1))  # Clear line
+                    stdscr.addstr(max_height-1, 0, status_msg, curses.color_pair(4))
+                    stdscr.refresh()
         
         except Exception as e:
             stdscr.addstr(max_height-1, 0, f"Error: {str(e)}", curses.color_pair(3))
@@ -760,6 +1098,7 @@ def scan_frequencies(sdr, start_freq, end_freq, threshold, step=SCAN_STEP):
             time.sleep(0.5)
         
         current_freq += step
+        current_step += 1
     
     # Remove duplicates and sort by frequency
     unique_signals = []
@@ -773,138 +1112,227 @@ def scan_frequencies(sdr, start_freq, end_freq, threshold, step=SCAN_STEP):
     return unique_signals
 
 def show_scanner_menu(stdscr):
-    """Display scanner configuration menu"""
-    stdscr.clear()
-    stdscr.addstr("Frequency Scanner Configuration:\n\n", curses.color_pair(1) | curses.A_BOLD)
+    """Display scanner configuration menu with band selection"""
+    max_height, max_width = stdscr.getmaxyx()
+    available_height = max_height - 6  # Reserve space for header and footer
     
-    # Get signal threshold
-    stdscr.addstr("Enter signal strength threshold ", curses.color_pair(2))
-    stdscr.addstr("(dB, recommended -40 to -20): ", curses.color_pair(2))
-    curses.echo()
-    stdscr.nodelay(False)
-    try:
-        threshold = float(stdscr.getstr().decode('utf-8'))
-    except ValueError:
-        threshold = -40  # Default value if invalid input
+    # Calculate total entries and pages
+    total_entries = len(BAND_PRESETS)
+    entries_per_page = available_height
+    total_pages = (total_entries + entries_per_page - 1) // entries_per_page
+    current_page = 0
     
-    stdscr.clear()
-    stdscr.addstr("\nAvailable Band Presets:\n\n", curses.color_pair(1) | curses.A_BOLD)
-    
-    # Show band presets
-    for i, (key, (start, end, description)) in enumerate(BAND_PRESETS.items(), 1):
-        line = f"{i}. Scan {key}: {description} ({start/1e6:.3f}-{end/1e6:.3f} MHz)\n"
-        stdscr.addstr(line, curses.color_pair(2))
-    
-    # Custom range option
-    stdscr.addstr(f"{len(BAND_PRESETS) + 1}. Custom frequency range\n", curses.color_pair(2))
-    
-    stdscr.addstr("\nEnter choice (or any other key to cancel): ", 
-                 curses.color_pair(1) | curses.A_BOLD)
-    
-    try:
-        choice = int(stdscr.getstr().decode('utf-8'))
-        if 1 <= choice <= len(BAND_PRESETS):
-            band_key = list(BAND_PRESETS.keys())[choice-1]
-            start, end, _ = BAND_PRESETS[band_key]
-            return start, end, threshold
-        elif choice == len(BAND_PRESETS) + 1:
-            # Get custom range
-            stdscr.addstr("\nEnter start frequency (MHz): ")
-            start = float(stdscr.getstr().decode('utf-8')) * 1e6
-            stdscr.addstr("Enter end frequency (MHz): ")
-            end = float(stdscr.getstr().decode('utf-8')) * 1e6
-            return start, end, threshold
-    except (ValueError, IndexError):
-        pass
-    finally:
-        stdscr.nodelay(True)
-        curses.noecho()
-        curses.curs_set(0)
+    while True:
         stdscr.clear()
-    
-    return None, None, None
-
-def display_scan_results(stdscr, signals, threshold):
-    """Display scanner results and allow selection"""
-    try:
-        if not signals:
-            stdscr.addstr("\nNo signals found above threshold.\n", curses.color_pair(3))
-            stdscr.addstr("\nPress any key to continue...", curses.color_pair(2))
-            stdscr.getch()
-            return None
         
-        stdscr.clear()
-        max_height, max_width = stdscr.getmaxyx()
-        current_line = 0
+        # Draw header
+        header = "Scanner Configuration - Select Band to Scan"
+        stdscr.addstr(0, 2, header, curses.color_pair(1) | curses.A_BOLD)
+        stdscr.addstr(1, 2, "-" * len(header), curses.color_pair(2))
         
-        header = f"Detected Signals ({len(signals)} found):\n\n"
-        stdscr.addstr(current_line, 0, header, curses.color_pair(1) | curses.A_BOLD)
-        current_line += 2
+        # Calculate slice for current page
+        start_idx = current_page * entries_per_page
+        end_idx = min(start_idx + entries_per_page, total_entries)
         
-        for i, signal in enumerate(signals, 1):
-            if current_line >= max_height - 3:
-                break
-            
-            # Format signal information with type
-            power_str = f"{signal['power']:.1f}".rjust(6)
-            freq_str = f"{signal['frequency']/1e6:.3f}".rjust(8)
-            bw_str = f"{signal['bandwidth']/1e3:.1f}".rjust(6)
-            type_str = signal['type'].ljust(15)
-            
-            line = f"{str(i).rjust(3)}. {freq_str} MHz  Power: {power_str} dB  BW: {bw_str} kHz  Type: {type_str}"
-            
-            # Color code by signal type
-            if signal['type'] == 'FM_BROADCAST':
-                color = curses.color_pair(4)  # Green
-            elif signal['type'] == 'DIGITAL':
-                color = curses.color_pair(5)  # Cyan
-            elif signal['type'] == 'UNKNOWN':
-                color = curses.color_pair(2)  # White
-            else:
-                color = curses.color_pair(1)  # Yellow
-            
-            if len(line) > max_width - 1:
-                line = line[:max_width - 4] + "..."
-            
-            stdscr.addstr(current_line, 0, line, color)
-            current_line += 1
+        # Display current page of presets
+        current_items = list(BAND_PRESETS.items())[start_idx:end_idx]
+        for i, (key, (start, end, description)) in enumerate(current_items, 1):
+            # Calculate absolute index for selection
+            abs_index = start_idx + i
+            line = f"{abs_index:2d}. {key:<8} : {description:<25} ({start/1e6:.3f}-{end/1e6:.3f} MHz)"
+            try:
+                stdscr.addstr(i + 2, 2, line, curses.color_pair(2))
+            except curses.error:
+                pass
         
-        # Add selection prompt
-        if current_line < max_height - 2:
-            prompt = "\nEnter number to tune to signal (or any other key to cancel): "
-            stdscr.addstr(current_line + 1, 0, prompt, 
-                         curses.color_pair(1) | curses.A_BOLD)
+        # Add custom range option
+        custom_option = f"{total_entries + 1}. Custom frequency range"
+        try:
+            stdscr.addstr(end_idx - start_idx + 3, 2, custom_option, curses.color_pair(4))
+        except curses.error:
+            pass
         
-        stdscr.refresh()
+        # Draw footer with navigation help
+        footer = f"Page {current_page + 1}/{total_pages} | [n]ext/[p]rev page | [q]uit | Enter number to select"
+        try:
+            stdscr.addstr(max_height-3, 2, footer, curses.color_pair(5))
+            stdscr.addstr(max_height-2, 2, "Choice: ", curses.color_pair(1) | curses.A_BOLD)
+        except curses.error:
+            pass
+        
+        # Handle input
         curses.echo()
         curses.curs_set(1)
         stdscr.nodelay(False)
         
         try:
-            choice = int(stdscr.getstr().decode('utf-8'))
-            if 1 <= choice <= len(signals):
-                return signals[choice-1]['frequency']
-        except (ValueError, IndexError):
+            choice = stdscr.getstr().decode('utf-8').lower()
+            
+            if choice == 'q':
+                return None, None, None
+            elif choice == 'n' and current_page < total_pages - 1:
+                current_page += 1
+                continue
+            elif choice == 'p' and current_page > 0:
+                current_page -= 1
+                continue
+            
+            try:
+                choice_num = int(choice)
+                if 1 <= choice_num <= total_entries:
+                    # Get selected band
+                    band_key = list(BAND_PRESETS.keys())[choice_num - 1]
+                    start, end, _ = BAND_PRESETS[band_key]
+                    
+                    # Get threshold
+                    stdscr.clear()
+                    stdscr.addstr(0, 2, "Enter signal strength threshold \n(dB, recommended -40 to -20): ", 
+                                curses.color_pair(2))
+                    threshold = float(stdscr.getstr().decode('utf-8'))
+                    
+                    return start, end, threshold
+                    
+                elif choice_num == total_entries + 1:
+                    # Handle custom range
+                    stdscr.clear()
+                    stdscr.addstr(0, 2, "Enter start frequency (MHz): ", curses.color_pair(2))
+                    start = float(stdscr.getstr().decode('utf-8')) * 1e6
+                    stdscr.addstr(1, 2, "Enter end frequency (MHz): ", curses.color_pair(2))
+                    end = float(stdscr.getstr().decode('utf-8')) * 1e6
+                    stdscr.addstr(2, 2, "Enter signal strength threshold \n(dB, recommended -40 to -20): ", 
+                                curses.color_pair(2))
+                    threshold = float(stdscr.getstr().decode('utf-8'))
+                    
+                    return start, end, threshold
+                    
+            except ValueError:
+                pass
+                
+        except curses.error:
             pass
         finally:
             stdscr.nodelay(True)
             curses.noecho()
             curses.curs_set(0)
+    
+    return None, None, None
+
+def display_scan_results(stdscr, signals, threshold):
+    """Display scanner results with pagination and allow selection"""
+    # Ensure we're in the right mode for user input
+    stdscr.nodelay(False)  # Make sure we wait for input
+    curses.echo()          # Show user input
+    curses.curs_set(1)     # Show cursor
+    
+    try:
+        if not signals:
+            stdscr.addstr(0, 0, "\nNo signals found above threshold.\n", curses.color_pair(3))
+            stdscr.addstr(2, 0, "\nPress any key to continue...", curses.color_pair(2))
+            stdscr.getch()  # Wait for keypress
+            return None
         
-    except curses.error:
-        pass
+        max_height, max_width = stdscr.getmaxyx()
+        results_per_page = max_height - 7  # Reserve space for header and footer
+        total_pages = (len(signals) + results_per_page - 1) // results_per_page
+        current_page = 0
+        
+        while True:
+            stdscr.clear()
+            
+            # Draw header
+            header = f"Detected Signals ({len(signals)} found) - Page {current_page + 1}/{total_pages}"
+            stdscr.addstr(0, 0, header, curses.color_pair(1) | curses.A_BOLD)
+            stdscr.addstr(1, 0, "-" * len(header), curses.color_pair(2))
+            
+            # Calculate slice for current page
+            start_idx = current_page * results_per_page
+            end_idx = min(start_idx + results_per_page, len(signals))
+            
+            # Display signals for current page
+            current_line = 2
+            for i, signal in enumerate(signals[start_idx:end_idx], start_idx + 1):
+                power_str = f"{signal['power']:.1f}".rjust(6)
+                freq_str = f"{signal['frequency']/1e6:.3f}".rjust(8)
+                bw_str = f"{signal['bandwidth']/1e3:.1f}".rjust(6)
+                type_str = signal['type'].ljust(15)
+                
+                line = f"{str(i).rjust(3)}. {freq_str} MHz  Power: {power_str} dB  BW: {bw_str} kHz  Type: {type_str}"
+                
+                # Color code by signal type
+                if signal['type'] == 'FM_BROADCAST':
+                    color = curses.color_pair(4)  # Green
+                elif signal['type'] == 'DIGITAL':
+                    color = curses.color_pair(5)  # Cyan
+                elif signal['type'] == 'UNKNOWN':
+                    color = curses.color_pair(2)  # White
+                else:
+                    color = curses.color_pair(1)  # Yellow
+                
+                stdscr.addstr(current_line, 0, line[:max_width-1], color)
+                current_line += 1
+            
+            # Draw navigation footer
+            footer = "Navigation: [n]ext page, [p]revious page, [number] to select, [q]uit"
+            stdscr.addstr(max_height-1, 0, footer, curses.color_pair(2))
+            stdscr.addstr(max_height-2, 0, "Enter choice: ", curses.color_pair(1) | curses.A_BOLD)
+            
+            stdscr.refresh()
+            
+            # Get user input
+            try:
+                choice = stdscr.getstr().decode('utf-8').lower()
+                
+                if choice == 'q':
+                    break
+                elif choice == 'n' and current_page < total_pages - 1:
+                    current_page += 1
+                elif choice == 'p' and current_page > 0:
+                    current_page -= 1
+                else:
+                    try:
+                        choice_num = int(choice)
+                        if 1 <= choice_num <= len(signals):
+                            return signals[choice_num-1]['frequency']
+                    except ValueError:
+                        pass
+            except curses.error:
+                pass
+            
+    except Exception as e:
+        # Debug output for unexpected errors
+        stdscr.addstr(max_height-1, 0, f"Display error ({type(e).__name__}): {str(e)}", 
+                     curses.color_pair(3))
+        stdscr.refresh()
+        stdscr.getch()  # Wait for key press to see error
+    
+    finally:
+        # Restore original terminal settings
+        stdscr.nodelay(True)
+        curses.noecho()
+        curses.curs_set(0)
+        stdscr.clear()
     
     return None
 
-def draw_scanning_status(stdscr, current_freq, start_freq, end_freq):
+def draw_scanning_status(stdscr, current_freq, start_freq, end_freq, sdr):
     """Draw scanning progress at the top of the screen"""
     try:
         max_height, max_width = stdscr.getmaxyx()
-        progress = (current_freq - start_freq) / (end_freq - start_freq)
         
+        # Calculate progress percentage
+        total_range = end_freq - start_freq
+        if total_range > 0:  # Prevent division by zero
+            progress = (current_freq - start_freq) / total_range
+        else:
+            progress = 0
+            
         # Calculate progress bar width (70% of screen width)
         bar_width = int(max_width * 0.7)
         filled = int(bar_width * progress)
+        
+        # Clear the status lines
+        stdscr.addstr(0, 0, " " * max_width)
+        stdscr.addstr(1, 0, " " * max_width)
         
         # Create the status text
         status_text = f"Scanning: {current_freq/1e6:8.3f} MHz "
@@ -915,66 +1343,29 @@ def draw_scanning_status(stdscr, current_freq, start_freq, end_freq):
         total_length = len(status_text) + len(progress_bar) + len(percentage)
         start_pos = max(0, (max_width - total_length) // 2)
         
-        # Draw the components
-        stdscr.addstr(0, 0, " " * max_width)  # Clear the line
+        # Draw the components with colors
         stdscr.addstr(0, start_pos, status_text, curses.color_pair(1) | curses.A_BOLD)
         stdscr.addstr(1, start_pos, progress_bar, curses.color_pair(2))
         stdscr.addstr(1, start_pos + len(progress_bar), percentage, curses.color_pair(4))
+        
+        # Force screen update
         stdscr.refresh()
+        
     except curses.error:
         pass  # Ignore curses errors
 
 def draw_waterfall(stdscr, freq_data, frequencies, center_freq, bandwidth, gain, step, 
-                  is_recording=False, recording_duration=None):
-    """Draw the waterfall display"""
+                  sdr, is_recording=False, recording_duration=None):
+    """Draw the waterfall display using ASCII characters"""
     global WATERFALL_HISTORY
     max_height, max_width = stdscr.getmaxyx()
-
+    display_width = max_width - 8
+    display_height = max_height - 4
+    
     # Add current data to history
     WATERFALL_HISTORY.append(freq_data)
     if len(WATERFALL_HISTORY) > WATERFALL_MAX_LINES:
         WATERFALL_HISTORY.pop(0)
-
-    # Draw header (reuse from spectrum display)
-    x_pos = 0
-    if is_recording:
-        recording_text = f"Recording: {recording_duration:.1f}s"
-        stdscr.addstr(0, max_width - len(recording_text) - 1, recording_text, 
-                     curses.color_pair(3) | curses.A_BOLD)
-        available_width = max_width - len(recording_text) - 2
-    else:
-        available_width = max_width
-
-    # Draw the colored header (similar to spectrum display)
-    freq_text = f"req: {center_freq/1e6:.6f} MHz"
-    bw_text = f"andwidth: {bandwidth/1e6:.2f} MHz"
-    gain_text = f"ain: {gain}"
-    samples_text = f"amples: {2**SAMPLES}"
-    step_text = f"ep: {step/1e6:.3f} MHz"
-    
-    x_pos = 0
-    stdscr.addstr(0, x_pos, "F", curses.color_pair(1) | curses.A_BOLD)
-    stdscr.addstr(0, x_pos+1, freq_text, curses.color_pair(2) )
-    x_pos += len(freq_text) + 3
-    stdscr.addstr(0, x_pos, "B", curses.color_pair(1) | curses.A_BOLD)
-    stdscr.addstr(0, x_pos+1, bw_text, curses.color_pair(2))
-    x_pos += len(bw_text) + 3
-    stdscr.addstr(0, x_pos, "G", curses.color_pair(1) | curses.A_BOLD)
-    stdscr.addstr(0, x_pos+1, gain_text, curses.color_pair(2))
-    x_pos = 0
-    stdscr.addstr(1, x_pos, "S", curses.color_pair(1) | curses.A_BOLD)
-    stdscr.addstr(1, x_pos+1, samples_text, curses.color_pair(2))
-    x_pos += len(samples_text) + 3
-    stdscr.addstr(1, x_pos, "S", curses.color_pair(2))
-    stdscr.addstr(1, x_pos+1, "t", curses.color_pair(1) | curses.A_BOLD)
-    stdscr.addstr(1, x_pos+2, step_text, curses.color_pair(2))
-    x_pos += len(step_text) + 4
-    stdscr.addstr(1, x_pos, "H", curses.color_pair(1) | curses.A_BOLD)
-    stdscr.addstr(1, x_pos+1, "elp", curses.color_pair(2))
-
-    # Draw waterfall
-    display_height = max_height - 3  # Reserve space for header and labels
-    display_width = max_width - 8    # Reserve space for dB scale
 
     # Normalize all data for consistent coloring
     all_data = np.array(WATERFALL_HISTORY)
@@ -982,13 +1373,14 @@ def draw_waterfall(stdscr, freq_data, frequencies, center_freq, bandwidth, gain,
     max_val = np.max(all_data[np.isfinite(all_data)])
     
     # Draw dB scale on the left
-    db_range = max_val - min_val
     for i in range(display_height):
-        db_value = max_val - (i * db_range / display_height)
+        db_value = max_val - (i * (max_val - min_val) / display_height)
         if i % 3 == 0:  # Show scale every 3 lines
             db_label = f"{db_value:4.0f}dB"
             try:
                 stdscr.addstr(i + 2, 0, db_label, curses.color_pair(2))
+                # Add scale markers
+                stdscr.addstr(i + 2, 8, "|", curses.color_pair(2))
             except curses.error:
                 pass
 
@@ -1004,34 +1396,60 @@ def draw_waterfall(stdscr, freq_data, frequencies, center_freq, bandwidth, gain,
             line_data
         )
 
-        # Draw each point in the line
+        # Draw each point in the line using ASCII characters
         for x, value in enumerate(resampled):
-            if not np.isfinite(value):
-                continue
+            if np.isfinite(value):
+                # Normalize value and select ASCII character and color
+                norm_value = (value - min_val) / (max_val - min_val)
+                color_index = int(norm_value * 5)  # 0-5 for the 6 color pairs
+                
+                if norm_value > 0.75:
+                    char = "#"
+                elif norm_value > 0.5:
+                    char = "="
+                elif norm_value > 0.25:
+                    char = "-"
+                else:
+                    char = "."
+                
+                try:
+                    stdscr.addstr(y + 3, x + 9, char, curses.color_pair(10 + color_index))
+                except curses.error:
+                    pass
 
-            # Normalize value and select color
-            norm_value = (value - min_val) / (max_val - min_val)
-            color_idx = min(len(WATERFALL_COLORS) - 1,
-                          int(norm_value * len(WATERFALL_COLORS)))
+    # Use standardized frequency labels
+    draw_frequency_labels(stdscr, center_freq, bandwidth, display_height, display_width)
+
+def draw_frequency_labels(stdscr, center_freq, bandwidth, display_height, display_width, x_offset=9):
+    """Standardized function to draw frequency labels and axis using ASCII only"""
+    try:
+        # Draw horizontal axis with ASCII characters
+        stdscr.addstr(display_height + 2, x_offset, "+" + "-" * (display_width - 1), 
+                     curses.color_pair(2))
+        
+        # Calculate frequency steps and format labels
+        half_bw = bandwidth / 2
+        start_freq = center_freq - half_bw
+        freq_step = bandwidth / 5
+        
+        # Draw frequency labels and tick marks
+        for i in range(6):
+            freq = start_freq + (i * freq_step)
+            label = f"{freq/1e6:.2f}MHz"
+            pos = int(x_offset + (i * (display_width-1)/5))
             
             try:
-                stdscr.addstr(y + 2, x + 8, "▀",  # Use unicode block character
-                            curses.color_pair(10 + color_idx))
+                # Draw tick mark
+                stdscr.addstr(display_height + 2, pos, "+", curses.color_pair(2))
+                
+                # Center the label under the tick mark
+                label_pos = max(pos - len(label)//2, x_offset)
+                stdscr.addstr(display_height + 3, label_pos, label, curses.color_pair(2))
             except curses.error:
                 pass
 
-    # Draw frequency labels at bottom
-    freq_step = bandwidth / 5
-    for i in range(6):
-        freq = center_freq - bandwidth/2 + i * freq_step
-        label = f"{freq/1e6:.2f}"
-        pos = int(8 + (i * display_width/5))
-        try:
-            stdscr.addstr(display_height + 2, pos, label, curses.color_pair(2))
-        except curses.error:
-            pass
-
-    stdscr.refresh()
+    except curses.error:
+        pass
 
 def show_demod_menu(stdscr):
     """Display demodulation mode selection menu"""
@@ -1121,103 +1539,90 @@ def estimate_modulation_index(samples):
     
     return phase_var / (amp_var + 1e-10)
 
-def draw_persistence(stdscr, freq_data, frequencies, center_freq, bandwidth, gain, step):
+def draw_persistence(stdscr, freq_data, frequencies, center_freq, bandwidth, gain, step,
+                    sdr, is_recording=False, recording_duration=None):
     """Draw spectrum with persistence effect"""
     global PERSISTENCE_HISTORY
     max_height, max_width = stdscr.getmaxyx()
+    display_width = max_width - 8  # Reserve space for dB scale
+    display_height = max_height - 4
     
-    # Draw the header (copied from spectrum display)
-    x_pos = 0
-    freq_text = f"req: {center_freq/1e6:.6f} MHz"
-    bw_text = f"andwidth: {bandwidth/1e6:.2f} MHz"
-    gain_text = f"ain: {gain}"
-    samples_text = f"amples: {2**SAMPLES}"
-    step_text = f"ep: {step/1e6:.3f} MHz"
-    
-    x_pos = 0
-    stdscr.addstr(0, x_pos, "F", curses.color_pair(1) | curses.A_BOLD)
-    stdscr.addstr(0, x_pos+1, freq_text, curses.color_pair(2))
-    x_pos += len(freq_text) + 3
-    stdscr.addstr(0, x_pos, "B", curses.color_pair(1) | curses.A_BOLD)
-    stdscr.addstr(0, x_pos+1, bw_text, curses.color_pair(2))
-    x_pos += len(bw_text) + 3
-    stdscr.addstr(0, x_pos, "G", curses.color_pair(1) | curses.A_BOLD)
-    stdscr.addstr(0, x_pos+1, gain_text, curses.color_pair(2))
-    x_pos = 0
-    stdscr.addstr(1, x_pos, "S", curses.color_pair(1) | curses.A_BOLD)
-    stdscr.addstr(1, x_pos+1, samples_text, curses.color_pair(2))
-    x_pos += len(samples_text) + 3
-    stdscr.addstr(1, x_pos, "S", curses.color_pair(2))
-    stdscr.addstr(1, x_pos+1, "t", curses.color_pair(1) | curses.A_BOLD)
-    stdscr.addstr(1, x_pos+2, step_text, curses.color_pair(2))
-    x_pos += len(step_text) + 4
-    stdscr.addstr(1, x_pos, "H", curses.color_pair(1) | curses.A_BOLD)
-    stdscr.addstr(1, x_pos+1, "elp", curses.color_pair(2))
-
     # Add current data to history
     PERSISTENCE_HISTORY.append(freq_data)
     if len(PERSISTENCE_HISTORY) > PERSISTENCE_LENGTH:
         PERSISTENCE_HISTORY.pop(0)
 
-    # Draw each trace with decreasing intensity
-    for i, historical_data in enumerate(PERSISTENCE_HISTORY):
-        alpha = PERSISTENCE_ALPHA ** (PERSISTENCE_LENGTH - i)
-        color_pair = int(1 + (5 * (1 - alpha)))  # Map alpha to color pairs 1-6
-        
-        # Draw spectrum line
-        for x in range(max_width):
+    # Draw dB scale on the left
+    min_val = np.min(freq_data[np.isfinite(freq_data)])
+    max_val = np.max(freq_data[np.isfinite(freq_data)])
+    db_range = max_val - min_val
+    for i in range(max_height - 3):
+        db_value = max_val - (i * db_range / (max_height - 3))
+        if i % 3 == 0:  # Show scale every 3 lines
+            db_label = f"{db_value:4.0f}dB"
             try:
-                y = int(max_height - 2 - (historical_data[x] / 100 * (max_height - 3)))
-                if 2 <= y < max_height - 1:
-                    stdscr.addstr(y, x, '▪', curses.color_pair(color_pair))
+                stdscr.addstr(i + 2, 0, db_label, curses.color_pair(2))
             except curses.error:
                 pass
 
-def draw_surface_plot(stdscr, freq_data, frequencies, center_freq, bandwidth, gain, step):
-    """Draw spectrum as pseudo-3D surface"""
-    max_height, max_width = stdscr.getmaxyx()
+    # Draw each trace with ASCII characters
+    for i, historical_data in enumerate(PERSISTENCE_HISTORY):
+        alpha = PERSISTENCE_ALPHA ** (PERSISTENCE_LENGTH - i)
+        color_pair = int(1 + (5 * (1 - alpha)))
         
-    # Draw the colored header (similar to spectrum display)
-    freq_text = f"req: {center_freq/1e6:.6f} MHz"
-    bw_text = f"andwidth: {bandwidth/1e6:.2f} MHz"
-    gain_text = f"ain: {gain}"
-    samples_text = f"amples: {2**SAMPLES}"
-    step_text = f"ep: {step/1e6:.3f} MHz"
+        for x in range(display_width):
+            try:
+                y = int(max_height - 2 - (historical_data[x] / 100 * (max_height - 3)))
+                if 2 <= y < max_height - 1:
+                    stdscr.addstr(y, x + 8, '*', curses.color_pair(color_pair))
+            except curses.error:
+                pass
     
-    x_pos = 0
-    stdscr.addstr(0, x_pos, "F", curses.color_pair(1) | curses.A_BOLD)
-    stdscr.addstr(0, x_pos+1, freq_text, curses.color_pair(2) )
-    x_pos += len(freq_text) + 3
-    stdscr.addstr(0, x_pos, "B", curses.color_pair(1) | curses.A_BOLD)
-    stdscr.addstr(0, x_pos+1, bw_text, curses.color_pair(2))
-    x_pos += len(bw_text) + 3
-    stdscr.addstr(0, x_pos, "G", curses.color_pair(1) | curses.A_BOLD)
-    stdscr.addstr(0, x_pos+1, gain_text, curses.color_pair(2))
-    x_pos = 0
-    stdscr.addstr(1, x_pos, "S", curses.color_pair(1) | curses.A_BOLD)
-    stdscr.addstr(1, x_pos+1, samples_text, curses.color_pair(2))
-    x_pos += len(samples_text) + 3
-    stdscr.addstr(1, x_pos, "S", curses.color_pair(2))
-    stdscr.addstr(1, x_pos+1, "t", curses.color_pair(1) | curses.A_BOLD)
-    stdscr.addstr(1, x_pos+2, step_text, curses.color_pair(2))
-    x_pos += len(step_text) + 4
-    stdscr.addstr(1, x_pos, "H", curses.color_pair(1) | curses.A_BOLD)
-    stdscr.addstr(1, x_pos+1, "elp", curses.color_pair(2))
+    # Use standardized frequency labels
+    draw_frequency_labels(stdscr, center_freq, bandwidth, display_height, display_width)
+
+def draw_surface_plot(stdscr, freq_data, frequencies, center_freq, bandwidth, gain, step,
+                     sdr, is_recording=False, recording_duration=None):
+    """Draw spectrum as pseudo-3D surface with frequency labels"""
+    max_height, max_width = stdscr.getmaxyx()
+    display_width = max_width - 8
+    display_height = max_height - 4
     
-    # Calculate isometric projection
+    # Calculate frequency range
+    half_bw = bandwidth / 2
+    start_freq = center_freq - half_bw
+    end_freq = center_freq + half_bw
+    
+    # Draw surface with ASCII characters
     angle_rad = np.radians(SURFACE_ANGLE)
-    for x in range(max_width):
+    for x in range(max_width - 10):  # Reserve space for labels
         magnitude = freq_data[x]
         for y in range(int(magnitude)):
-            screen_x = int(x - y * np.cos(angle_rad))
-            screen_y = int(max_height - y * np.sin(angle_rad))
+            screen_x = int(x - y * np.cos(angle_rad)) + 8  # Offset for labels
+            screen_y = int(max_height - 2 - y * np.sin(angle_rad))
             
-            if 0 <= screen_x < max_width and 0 <= screen_y < max_height:
+            if 0 <= screen_x < max_width and 2 <= screen_y < max_height - 1:
                 try:
-                    stdscr.addstr(screen_y, screen_x, '█', 
+                    stdscr.addstr(screen_y, screen_x, '#', 
                                 curses.color_pair(1 + (y % 5)))
                 except curses.error:
                     pass
+    
+    # Use standardized frequency labels
+    draw_frequency_labels(stdscr, center_freq, bandwidth, display_height, display_width)
+    
+    # Draw amplitude scale on the left
+    min_val = np.min(freq_data[np.isfinite(freq_data)])
+    max_val = np.max(freq_data[np.isfinite(freq_data)])
+    db_range = max_val - min_val
+    for i in range(max_height - 3):
+        db_value = max_val - (i * db_range / (max_height - 3))
+        if i % 3 == 0:  # Show scale every 3 lines
+            db_label = f"{db_value:4.0f}dB"
+            try:
+                stdscr.addstr(i + 2, 0, db_label, curses.color_pair(2))
+            except curses.error:
+                pass
 
 def interpolate_color(color1, color2, factor):
     """Interpolate between two RGB colors"""
@@ -1238,38 +1643,14 @@ def get_gradient_color(value):
                            GRADIENT_COLORS[segment + 1], 
                            factor)
 
-def draw_gradient_waterfall(stdscr, freq_data, frequencies, center_freq, bandwidth, gain, step):
-    """Draw waterfall with smooth color gradients"""
+def draw_gradient_waterfall(stdscr, freq_data, frequencies, center_freq, bandwidth, gain, step, 
+                          sdr, is_recording=False, recording_duration=None):
+    """Draw waterfall with ASCII characters for better compatibility"""
     global WATERFALL_HISTORY
     max_height, max_width = stdscr.getmaxyx()
+    display_width = max_width - 10
+    display_height = max_height - 4
     
-    # Draw the colored header (similar to spectrum display)
-    freq_text = f"req: {center_freq/1e6:.6f} MHz"
-    bw_text = f"andwidth: {bandwidth/1e6:.2f} MHz"
-    gain_text = f"ain: {gain}"
-    samples_text = f"amples: {2**SAMPLES}"
-    step_text = f"ep: {step/1e6:.3f} MHz"
-    
-    x_pos = 0
-    stdscr.addstr(0, x_pos, "F", curses.color_pair(1) | curses.A_BOLD)
-    stdscr.addstr(0, x_pos+1, freq_text, curses.color_pair(2) )
-    x_pos += len(freq_text) + 3
-    stdscr.addstr(0, x_pos, "B", curses.color_pair(1) | curses.A_BOLD)
-    stdscr.addstr(0, x_pos+1, bw_text, curses.color_pair(2))
-    x_pos += len(bw_text) + 3
-    stdscr.addstr(0, x_pos, "G", curses.color_pair(1) | curses.A_BOLD)
-    stdscr.addstr(0, x_pos+1, gain_text, curses.color_pair(2))
-    x_pos = 0
-    stdscr.addstr(1, x_pos, "S", curses.color_pair(1) | curses.A_BOLD)
-    stdscr.addstr(1, x_pos+1, samples_text, curses.color_pair(2))
-    x_pos += len(samples_text) + 3
-    stdscr.addstr(1, x_pos, "S", curses.color_pair(2))
-    stdscr.addstr(1, x_pos+1, "t", curses.color_pair(1) | curses.A_BOLD)
-    stdscr.addstr(1, x_pos+2, step_text, curses.color_pair(2))
-    x_pos += len(step_text) + 4
-    stdscr.addstr(1, x_pos, "H", curses.color_pair(1) | curses.A_BOLD)
-    stdscr.addstr(1, x_pos+1, "elp", curses.color_pair(2))
-
     # Add current data to history
     WATERFALL_HISTORY.append(freq_data)
     if len(WATERFALL_HISTORY) > WATERFALL_MAX_LINES:
@@ -1280,101 +1661,229 @@ def draw_gradient_waterfall(stdscr, freq_data, frequencies, center_freq, bandwid
     min_val = np.min(all_data[np.isfinite(all_data)])
     max_val = np.max(all_data[np.isfinite(all_data)])
     
-    # Draw each line with smooth color gradient
+    # Draw dB scale on the left
+    for i in range(display_height):
+        db_value = max_val - (i * (max_val - min_val) / display_height)
+        if i % 3 == 0:  # Show scale every 3 lines
+            db_label = f"{db_value:4.0f}dB"
+            try:
+                stdscr.addstr(i + 2, 0, db_label, curses.color_pair(2))
+                # Add scale markers
+                stdscr.addstr(i + 2, 8, "|", curses.color_pair(2))
+            except curses.error:
+                pass
+
+    # Define ASCII intensity characters (from darkest to brightest)
+    intensity_chars = ' ._-=+*#@'  # 9 levels of intensity
+    
+    # Draw each line with ASCII characters
     for y, line_data in enumerate(reversed(WATERFALL_HISTORY)):
-        if y >= max_height - 3:
+        if y >= display_height:
             break
             
-        for x, value in enumerate(line_data):
-            if x >= max_width - 1:
-                break
-                
+        # Resample data to fit display width
+        resampled = np.interp(
+            np.linspace(0, len(line_data) - 1, display_width),
+            np.arange(len(line_data)),
+            line_data
+        )
+        
+        for x, value in enumerate(resampled):
             if np.isfinite(value):
+                # Normalize value between 0 and 1
                 normalized = (value - min_val) / (max_val - min_val)
-                color = get_gradient_color(normalized)
                 
-                # Map RGB color to nearest terminal color
-                color_index = (int(color[0] / 86) * 36 + 
-                             int(color[1] / 86) * 6 + 
-                             int(color[2] / 86))
+                # Convert normalized value to character index
+                char_index = int(normalized * (len(intensity_chars) - 1))
+                char = intensity_chars[char_index]
+                
+                # Select color based on intensity
+                color_index = int(normalized * 5)  # 6 color pairs (0-5)
                 
                 try:
-                    stdscr.addstr(y + 2, x, '▀', 
-                                curses.color_pair(10 + (color_index % 6)))
+                    stdscr.addstr(y + 2, x + 9, char, 
+                                curses.color_pair(10 + color_index))
                 except curses.error:
                     pass
 
-def draw_vector_display(stdscr, samples, center_freq, bandwidth, gain, step):
+    # Draw intensity scale on the right
+    for i in range(display_height):
+        normalized = 1 - (i / display_height)
+        char_index = int(normalized * (len(intensity_chars) - 1))
+        try:
+            stdscr.addstr(i + 2, max_width - 2, 
+                         intensity_chars[char_index] * 2, 
+                         curses.color_pair(10 + int(normalized * 5)))
+        except curses.error:
+            pass
+
+    # Use standardized frequency labels
+    draw_frequency_labels(stdscr, center_freq, bandwidth, display_height, display_width)
+
+def draw_vector_display(stdscr, samples, center_freq, bandwidth, gain, step, sdr, 
+                       is_recording=False, recording_duration=None):
     """Draw I/Q samples as vector constellation"""
     max_height, max_width = stdscr.getmaxyx()
+    display_width = max_width - 8
+    display_height = max_height - 4
     
     # Create coordinate system
     center_x = max_width // 2
     center_y = max_height // 2
     scale = min(max_width, max_height) // 4
     
-    # Draw the colored header (similar to spectrum display)
-    freq_text = f"req: {center_freq/1e6:.6f} MHz"
-    bw_text = f"andwidth: {bandwidth/1e6:.2f} MHz"
-    gain_text = f"ain: {gain}"
-    samples_text = f"amples: {2**SAMPLES}"
-    step_text = f"ep: {step/1e6:.3f} MHz"
-    
-    x_pos = 0
-    stdscr.addstr(0, x_pos, "F", curses.color_pair(1) | curses.A_BOLD)
-    stdscr.addstr(0, x_pos+1, freq_text, curses.color_pair(2) )
-    x_pos += len(freq_text) + 3
-    stdscr.addstr(0, x_pos, "B", curses.color_pair(1) | curses.A_BOLD)
-    stdscr.addstr(0, x_pos+1, bw_text, curses.color_pair(2))
-    x_pos += len(bw_text) + 3
-    stdscr.addstr(0, x_pos, "G", curses.color_pair(1) | curses.A_BOLD)
-    stdscr.addstr(0, x_pos+1, gain_text, curses.color_pair(2))
-    x_pos = 0
-    stdscr.addstr(1, x_pos, "S", curses.color_pair(1) | curses.A_BOLD)
-    stdscr.addstr(1, x_pos+1, samples_text, curses.color_pair(2))
-    x_pos += len(samples_text) + 3
-    stdscr.addstr(1, x_pos, "S", curses.color_pair(2))
-    stdscr.addstr(1, x_pos+1, "t", curses.color_pair(1) | curses.A_BOLD)
-    stdscr.addstr(1, x_pos+2, step_text, curses.color_pair(2))
-    x_pos += len(step_text) + 4
-    stdscr.addstr(1, x_pos, "H", curses.color_pair(1) | curses.A_BOLD)
-    stdscr.addstr(1, x_pos+1, "elp", curses.color_pair(2))
-    
-    # Draw axes
+    # Draw axes with ASCII characters
     for i in range(max_width):
         try:
-            stdscr.addstr(center_y, i, '─')
+            stdscr.addstr(center_y, i, '-')
         except curses.error:
             pass
     for i in range(max_height):
         try:
-            stdscr.addstr(i, center_x, '│')
+            stdscr.addstr(i, center_x, '|')
         except curses.error:
             pass
     
-    # Plot I/Q samples
+    # Plot I/Q samples with ASCII dot
     for i, q in zip(np.real(samples), np.imag(samples)):
         x = int(center_x + i * scale)
         y = int(center_y - q * scale)
         
         if 0 <= x < max_width and 0 <= y < max_height:
             try:
-                stdscr.addstr(y, x, '•', curses.color_pair(1))
+                stdscr.addstr(y, x, '.', curses.color_pair(1))
             except curses.error:
                 pass
 
+    # Use standardized frequency labels
+    draw_frequency_labels(stdscr, center_freq, bandwidth, display_height, display_width)
+
+# Add new class to handle different SDR backends
+class SDRDevice:
+    def __init__(self, backend='RTL', stdscr=None):
+        self.backend = 'RTL'  # Always RTL-SDR
+        self.device = None
+        self.sample_rate = 2.048e6
+        self.center_freq = 100e6
+        self.gain = 20
+        self.bandwidth = 2e6
+        self.ppm = DEFAULT_PPM
+        self.stdscr = stdscr
+    
+    def init_device(self):
+        """Initialize RTL-SDR device with error handling for PPM correction"""
+        try:
+            self.device = RtlSdr()
+            
+            # Set basic parameters first, without PPM
+            self.device.sample_rate = self.sample_rate
+            self.device.center_freq = self.center_freq
+            self.device.gain = self.gain
+            
+            # Don't try to set PPM during initialization
+            self.ppm = 0  # Start with 0 PPM
+                
+        except Exception as e:
+            raise RuntimeError(f"Error initializing RTL-SDR device: {e}")
+    
+    def read_samples(self, num_samples):
+        """Read samples from the RTL-SDR device"""
+        return self.device.read_samples(num_samples)
+    
+    def close(self):
+        self.device.close()
+    
+    @property
+    def valid_gains_db(self):
+        return self.device.valid_gains_db
+    
+    def set_gain(self, gain):
+        """Set the gain value or enable automatic gain control"""
+        self.device.gain = gain
+        self.gain = gain
+    
+    def set_center_freq(self, freq):
+        self.device.center_freq = freq
+        self.center_freq = freq
+    
+    def set_sample_rate(self, rate):
+        self.device.sample_rate = rate
+        self.sample_rate = rate
+
+    def set_ppm(self, ppm):
+        """Set the frequency correction in PPM with error handling"""
+        try:
+            try:
+                self.device.freq_correction = ppm
+                self.ppm = ppm  # Only update if successful
+            except Exception as e:
+                self.stdscr.addstr(0, 0, f"RTL-SDR PPM Error: {str(e)}", 
+                             curses.color_pair(3) | curses.A_BOLD)
+                self.stdscr.refresh()
+                time.sleep(1)
+                return False
+            return True
+            
+        except Exception as e:
+            self.stdscr.addstr(0, 0, f"PPM Error: {str(e)}", 
+                         curses.color_pair(3) | curses.A_BOLD)
+            self.stdscr.refresh()
+            time.sleep(1)
+            return False
+
+def init_audio_device():
+    """Initialize audio device with error handling and backend selection"""
+    try:
+        # Try to create output stream without specifying backend
+        test_stream = sd.OutputStream(
+            channels=1,
+            samplerate=44100,
+            blocksize=2048,
+            dtype=np.float32
+        )
+        test_stream.close()
+        return True
+    except sd.PortAudioError as e:
+        print(f"Audio initialization error: {e}")
+        return False
+
+def init_device(self):
+    """Initialize SDR device with error handling for PPM correction"""
+    try:
+        if self.backend == 'RTL':
+            self.device = RtlSdr()
+            
+            # Set basic parameters first, without PPM
+            self.device.sample_rate = self.sample_rate
+            self.device.center_freq = self.center_freq
+            self.device.gain = self.gain
+            
+            # Don't try to set PPM during initialization
+            self.ppm = 0  # Start with 0 PPM
+            
+    except Exception as e:
+        raise RuntimeError(f"Error initializing SDR device: {e}")
+
 def main(stdscr):
-    global SCAN_ACTIVE, AGC_ENABLED, last_agc_update, SAMPLES, WATERFALL_MODE, CURRENT_DEMOD, current_display_mode
+    global SCAN_ACTIVE, AGC_ENABLED, last_agc_update, SAMPLES, WATERFALL_MODE, CURRENT_DEMOD
     init_colors()
     gainindex = -1
+    
+    # Get initial screen dimensions
+    max_height, max_width = stdscr.getmaxyx()
     
     # Initialize display mode
     current_display_mode = 'SPECTRUM'
     
-    # Get screen dimensions
-    max_height, max_width = stdscr.getmaxyx()
+    # Initialize audio
+    audio_available = init_audio_device()
+    if not audio_available:
+        stdscr.addstr(0, 0, "Warning: Audio system initialization failed", 
+                     curses.color_pair(3) | curses.A_BOLD)
+        stdscr.refresh()
+        time.sleep(2)
     
-    # Add audio state variable
+    # Add audio state variables
     audio_enabled = False
     stream = None
 
@@ -1383,31 +1892,41 @@ def main(stdscr):
     wav_file = None
     recording_start_time = None
 
-    # Initialize SDR
-    sdr = RtlSdr()
-
+    # Initialize SDR device with selected backend
     try:
+        sdr = SDRDevice(stdscr=stdscr)
+        sdr.init_device()
+        
         # Load saved settings if available
         settings = load_settings()
-        sdr.sample_rate = settings['sample_rate']
-        sdr.center_freq = settings['frequency']
+        sdr.set_sample_rate(settings['sample_rate'])
+        sdr.set_center_freq(settings['frequency'])
         
         # Handle gain setting properly
         if settings['gain'] == 'auto':
-            sdr.gain = 'auto'
+            sdr.set_gain('auto')
             gainindex = -1
         else:
             try:
                 gain_value = float(settings['gain'])
-                # Find the closest valid gain value
                 valid_gains = sdr.valid_gains_db
                 gainindex = min(range(len(valid_gains)), 
                               key=lambda i: abs(valid_gains[i] - gain_value))
-                sdr.gain = valid_gains[gainindex]
+                sdr.set_gain(valid_gains[gainindex])
             except (ValueError, TypeError):
-                # If there's any error, default to auto gain
-                sdr.gain = 'auto'
+                sdr.set_gain('auto')
                 gainindex = -1
+        
+        # Try to set PPM after device is initialized
+        try:
+            if settings['ppm'] != 0:  # Only try to set non-zero PPM
+                sdr.set_ppm(settings['ppm'])
+        except Exception as e:
+            stdscr.addstr(0, 0, f"Warning: PPM correction not supported: {str(e)}", 
+                         curses.color_pair(3) | curses.A_BOLD)
+            stdscr.refresh()
+            time.sleep(1)
+            sdr.ppm = 0  # Reset to 0 if setting fails
         
         bandwidth = settings['bandwidth']
         freq_step = settings['freq_step']
@@ -1418,295 +1937,430 @@ def main(stdscr):
         stdscr.nodelay(True)
 
         while True:
-            current_time = time.time()
-            
-            # Read samples and compute FFT
-            samples = sdr.read_samples((2**SAMPLES) * 256)
-
-            # Handle AGC if enabled
-            if AGC_ENABLED and (current_time - last_agc_update) >= AGC_UPDATE_INTERVAL:
-                current_power = measure_signal_power(samples)
-                gainindex = adjust_gain(sdr, current_power, gainindex)
-                last_agc_update = current_time
-
-            # Update screen dimensions in case terminal was resized
-            max_height, max_width = stdscr.getmaxyx()
-            
-            # Update audio processing logic
-            if AUDIO_AVAILABLE and audio_enabled:
-                audio = demodulate_signal(samples, sdr.sample_rate, CURRENT_DEMOD)
-                audio_buffer.append(audio)
-
-            # Calculate frequency bins
-            num_bins = 1024  # Reduced from 2048
-            freq_bins = np.fft.fftshift(np.fft.fftfreq(num_bins, d=1/sdr.sample_rate)) + sdr.center_freq
-
-            # Compute FFT
-            fft_data = np.fft.fftshift(np.fft.fft(samples[:num_bins], num_bins))
-            power_spectrum = 10 * np.log10(np.abs(fft_data)**2)
-
-            # Update the draw_spectrogram call to include recording status
-            recording_duration = time.time() - recording_start_time if audio_recording else None
-            if current_display_mode == 'SPECTRUM':
-                draw_spectrogram(stdscr, power_spectrum, freq_bins, sdr.center_freq, 
-                               bandwidth, sdr.gain, freq_step, 
-                               audio_recording, recording_duration)
-            elif current_display_mode == 'WATERFALL':
-                draw_waterfall(stdscr, power_spectrum, freq_bins, sdr.center_freq, 
-                             bandwidth, sdr.gain, freq_step, 
-                             audio_recording, recording_duration)
-            elif current_display_mode == 'PERSISTENCE':
-                draw_persistence(stdscr, power_spectrum, freq_bins, sdr.center_freq,
-                               bandwidth, sdr.gain, freq_step)
-            elif current_display_mode == 'SURFACE':
-                draw_surface_plot(stdscr, power_spectrum, freq_bins, sdr.center_freq,
-                                bandwidth, sdr.gain, freq_step)
-            elif current_display_mode == 'GRADIENT':
-                draw_gradient_waterfall(stdscr, power_spectrum, freq_bins, sdr.center_freq,
-                                     bandwidth, sdr.gain, freq_step)
-            elif current_display_mode == 'VECTOR':
-                draw_vector_display(stdscr, samples, sdr.center_freq,
-                                 bandwidth, sdr.gain, freq_step)
-
-
-            # Handle user input
-            key = stdscr.getch()
-            if key == ord('q'):  # Quit
-                break
-            elif key == curses.KEY_UP:  # Increase frequency by 1 MHz
-                sdr.center_freq += 1e6
-            elif key == curses.KEY_DOWN:  # Decrease frequency by 1 MHz
-                sdr.center_freq = max(0, sdr.center_freq - 1e6)
-            elif key == curses.KEY_RIGHT:  # Increase frequency by 0.5 MHz
-                sdr.center_freq += 0.5e6
-            elif key == curses.KEY_LEFT:  # Decrease frequency by 0.5 MHz
-                sdr.center_freq = max(0, sdr.center_freq - 0.5e6)
-            elif key == ord('x'):  # Set Frequency
-                freq = setfreq(stdscr)
-                if freq[-1] in 'mM  ':
-                    freq = float(freq[:-1]) * 1e6
-                elif freq[-1] in 'kK':
-                    freq = float(freq[:-1]) * 1e3
-                sdr.center_freq = int(freq)
-            elif key == ord('t'):  # Decrease step
-                freq_step = max(0.01e6, freq_step - 0.01e6)
-            elif key == ord('T'):  # Increase step
-                freq_step = min(sdr.sample_rate / 2, freq_step + 0.01e6)
-            elif key == ord('h'):  # Help
-                showhelp(stdscr)
-            elif key == ord('b'):  # Zoom in (reduce bandwidth)
-                bandwidth = max(0.1e6, bandwidth - zoom_step)
-            elif key == ord('B'):  # Zoom out (increase bandwidth)
-                bandwidth = min(sdr.sample_rate, bandwidth + zoom_step)
-            elif key == ord('f'):  # Shift center frequency down
-                sdr.center_freq = max(0, sdr.center_freq - freq_step)
-            elif key == ord('F'):  # Shift center frequency up
-                sdr.center_freq += freq_step
-            elif key == ord('s'):  # Decrease samples
-                SAMPLES -= 1
-                if SAMPLES < 5:
-                    SAMPLES = 5
-            elif key == ord('S'):  # Increase samples
-                SAMPLES += 1
-                if SAMPLES > 12:
-                    SAMPLES = 12
-            elif key == ord('G'):
-                gainindex +=1
-                if gainindex <= len(sdr.valid_gains_db)-1:
-                    sdr.gain = sdr.valid_gains_db[gainindex]
-                else:
-                    sdr.gain = "auto"
-                    gainindex = -1
-            elif key == ord('g'):
-                gainindex -= 1
-                if gainindex < 0:
-                    sdr.gain = sdr.valid_gains_db[0]
-                    gainindex = 0
-                else:
-                    sdr.gain = sdr.valid_gains_db[gainindex]
-            elif key == ord('k'):  # Save bookmark
-                add_bookmark(stdscr, sdr.center_freq)
-            elif key == ord('l'):  # Load bookmark
-                new_freq = show_bookmarks(stdscr)
-                if new_freq is not None:
-                    sdr.center_freq = new_freq
-            elif key == ord('a'):  # Toggle audio
-                if AUDIO_AVAILABLE:
-                    audio_enabled = not audio_enabled
-                    if audio_enabled and stream is None:
-                        stream = sd.OutputStream(
-                            channels=1,
-                            samplerate=44100,
-                            callback=audio_callback,
-                            blocksize=2048,
-                            latency=0.1,
-                            dtype=np.float32,
-                            prime_output_buffers_using_stream_callback=True
-                        )
-                        stream.start()
-                    elif not audio_enabled and stream is not None:
-                        stream.stop()
-                        stream.close()
-                        stream = None
-                        audio_buffer.clear()
-            elif key == ord('R'):  # Start/Stop recording
-                if not audio_recording and AUDIO_AVAILABLE and audio_enabled:
-                    # Start recording
-                    timestamp = time.strftime("%Y%m%d-%H%M%S")
-                    filename = f"sdr_recording_{timestamp}.wav"
-                    wav_file = start_audio_recording(filename)
-                    audio_recording = True
-                    recording_start_time = time.time()
-                    stdscr.addstr(max_height-1, 0, f"Started recording to {filename}", 
-                                curses.color_pair(4))
-                elif audio_recording:
-                    # Stop recording
-                    stop_audio_recording(wav_file)
-                    audio_recording = False
-                    wav_file = None
-                    stdscr.addstr(max_height-1, 0, "Recording stopped", 
-                                curses.color_pair(4))
-                else:
-                    stdscr.addstr(max_height-1, 0, 
-                                "Audio must be enabled to record (press 'a' first)", 
-                                curses.color_pair(3))
-                stdscr.refresh()
-            elif key == ord('w'):  # Save settings
-                save_settings(sdr, bandwidth, freq_step, SAMPLES, AGC_ENABLED)
-                stdscr.addstr(max_height-1, 0, "Settings saved", curses.color_pair(4))
-                stdscr.refresh()
-                time.sleep(1)  # Show message briefly
-            elif key == ord('v'):  # Toggle waterfall mode
-                WATERFALL_MODE = not WATERFALL_MODE
-                WATERFALL_HISTORY.clear()  # Clear history when switching modes
-                stdscr.clear()
-            elif key == ord('r'):  # Load settings
-                settings = load_settings()
-                sdr.sample_rate = settings['sample_rate']
-                sdr.center_freq = settings['frequency']
-                sdr.gain = settings['gain']
-                bandwidth = settings['bandwidth']
-                freq_step = settings['freq_step']
-                SAMPLES = settings['samples']
-                AGC_ENABLED = settings['agc_enabled']
-                stdscr.addstr(max_height-1, 0, "Settings loaded", curses.color_pair(4))
-                stdscr.refresh()
-                time.sleep(1)  # Show message briefly
-            elif key == ord('A'):  # Toggle AGC
-                AGC_ENABLED = not AGC_ENABLED
-                if not AGC_ENABLED:
-                    # Reset to manual gain mode
-                    if gainindex >= 0 and gainindex < len(sdr.valid_gains_db):
-                        sdr.gain = sdr.valid_gains_db[gainindex]
-                    else:
-                        sdr.gain = 'auto'
-                        gainindex = -1
-            elif key == ord('p'):  # Band presets
-                new_freq, new_bandwidth = show_band_presets(stdscr)
-                if new_freq is not None:
-                    sdr.center_freq = new_freq
-                    bandwidth = new_bandwidth
-                    # Adjust gain for the new frequency range
-                    if AGC_ENABLED:
-                        # Force an immediate AGC update
-                        last_agc_update = 0
-                    stdscr.addstr(max_height-1, 0, f"Switched to band: {new_freq/1e6:.3f} MHz", 
-                                curses.color_pair(4))
+            try:
+                current_time = time.time()
+                
+                # Update screen dimensions in case terminal was resized
+                max_height, max_width = stdscr.getmaxyx()
+                
+                # Read samples and compute FFT
+                try:
+                    samples = sdr.read_samples((2**SAMPLES) * 256)
+                    if len(samples) == 0 or np.all(samples == 0):
+                        stdscr.addstr(max_height-1, 0, "Error reading samples, retrying...", 
+                                     curses.color_pair(3))
+                        stdscr.refresh()
+                        time.sleep(0.1)
+                        continue
+                except Exception as e:
+                    stdscr.addstr(max_height-1, 0, f"Error: {str(e)}", curses.color_pair(3))
                     stdscr.refresh()
-                    time.sleep(1)
-            elif key == ord('c'):  # Start scanner
-                start_freq, end_freq, threshold = show_scanner_menu(stdscr)
-                if start_freq is not None and end_freq is not None and threshold is not None:
-                    # Store current settings
-                    old_freq = sdr.center_freq
-                    old_gain = sdr.gain
-                    new_freq = None
-                    
-                    # Configure for scanning
-                    if AGC_ENABLED:
-                        sdr.gain = 'auto'
-                    
-                    SCAN_ACTIVE = True
-                    
-                    try:
+                    time.sleep(0.1)
+                    continue
+
+                # Handle AGC if enabled
+                if AGC_ENABLED and (current_time - last_agc_update) >= AGC_UPDATE_INTERVAL:
+                    current_power = measure_signal_power(samples)
+                    gainindex = adjust_gain(sdr, current_power, gainindex)
+                    last_agc_update = current_time
+
+                # Update audio processing logic
+                if AUDIO_AVAILABLE and audio_enabled:
+                    audio = demodulate_signal(samples, sdr.sample_rate, CURRENT_DEMOD)
+                    audio_buffer.append(audio)
+
+                # Calculate frequency bins
+                num_bins = 1024  # Reduced from 2048
+                freq_bins = np.fft.fftshift(np.fft.fftfreq(num_bins, d=1/sdr.sample_rate)) + sdr.center_freq
+
+                # Compute FFT
+                fft_data = np.fft.fftshift(np.fft.fft(samples[:num_bins], num_bins))
+                power_spectrum = 10 * np.log10(np.abs(fft_data)**2)
+
+                # Update the draw_spectrogram call to include recording status
+                recording_duration = time.time() - recording_start_time if audio_recording else None
+                
+                draw_header(stdscr, power_spectrum, freq_bins, sdr.center_freq, bandwidth, sdr.gain, freq_step, sdr, audio_recording, recording_duration)
+                
+                if current_display_mode == 'SPECTRUM':
+                    draw_spectrogram(stdscr, power_spectrum, freq_bins, sdr.center_freq, 
+                                   bandwidth, sdr.gain, freq_step, sdr,  # Add sdr here
+                                   audio_recording, recording_duration)
+                elif current_display_mode == 'WATERFALL':
+                    draw_waterfall(stdscr, power_spectrum, freq_bins, sdr.center_freq, 
+                                 bandwidth, sdr.gain, freq_step, sdr,  # Add sdr here
+                                 audio_recording, recording_duration)
+                elif current_display_mode == 'PERSISTENCE':
+                    draw_persistence(stdscr, power_spectrum, freq_bins, sdr.center_freq,
+                                   bandwidth, sdr.gain, freq_step, sdr,  # Add sdr here
+                                   audio_recording, recording_duration)
+                elif current_display_mode == 'SURFACE':
+                    draw_surface_plot(stdscr, power_spectrum, freq_bins, sdr.center_freq,
+                                  bandwidth, sdr.gain, freq_step, sdr,  # Add sdr here
+                                  audio_recording, recording_duration)
+                elif current_display_mode == 'GRADIENT':
+                    draw_gradient_waterfall(stdscr, power_spectrum, freq_bins, sdr.center_freq,
+                                           bandwidth, sdr.gain, freq_step, sdr,
+                                           audio_recording, recording_duration)
+                elif current_display_mode == 'VECTOR':
+                    draw_vector_display(stdscr, samples, sdr.center_freq,
+                                   bandwidth, sdr.gain, freq_step, sdr)
+
+
+                # Handle user input
+                key = stdscr.getch()
+                if key == ord('q'):  # Quit
+                    break
+                elif key == ord('a'):  # Toggle audio
+                    if audio_available:
+                        audio_enabled = not audio_enabled
+                        if audio_enabled and stream is None:
+                            try:
+                                stream = sd.OutputStream(
+                                    channels=1,
+                                    samplerate=44100,
+                                    callback=audio_callback,
+                                    blocksize=2048,
+                                    latency=0.1,
+                                    dtype=np.float32
+                                )
+                                stream.start()
+                            except sd.PortAudioError as e:
+                                stdscr.addstr(0, 0, f"Audio error: {str(e)}", 
+                                            curses.color_pair(3) | curses.A_BOLD)
+                                stdscr.refresh()
+                                time.sleep(2)
+                                audio_enabled = False
+                                stream = None
+                        elif not audio_enabled and stream is not None:
+                            try:
+                                stream.stop()
+                                stream.close()
+                            except:
+                                pass
+                            stream = None
+                            audio_buffer.clear()
+                elif key == curses.KEY_UP:  # Increase frequency by 1 MHz
+                    sdr.set_center_freq(sdr.center_freq + 1e6)
+                elif key == curses.KEY_DOWN:  # Decrease frequency by 1 MHz
+                    sdr.set_center_freq(max(0, sdr.center_freq - 1e6))
+                elif key == curses.KEY_RIGHT:  # Increase frequency by 0.5 MHz
+                    sdr.set_center_freq(sdr.center_freq + 0.5e6)
+                elif key == curses.KEY_LEFT:  # Decrease frequency by 0.5 MHz
+                    sdr.set_center_freq(max(0, sdr.center_freq - 0.5e6))
+                elif key == ord('x'):  # Set Frequency
+                    freq = setfreq(stdscr)
+                    if freq[-1] in 'mM  ':
+                        freq = float(freq[:-1]) * 1e6
+                    elif freq[-1] in 'kK':
+                        freq = float(freq[:-1]) * 1e3
+                    sdr.set_center_freq(int(freq))
+                elif key == ord('t'):  # Decrease step
+                    freq_step = max(0.01e6, freq_step - 0.01e6)
+                    draw_clearheader(stdscr)
+                elif key == ord('T'):  # Increase step
+                    freq_step = min(sdr.sample_rate / 2, freq_step + 0.01e6)
+                    draw_clearheader(stdscr)
+                elif key == ord('h'):  # Help
+                    showhelp(stdscr)
+                    stdscr.clear()
+                    stdscr.refresh()
+                elif key == ord('b'):  # Zoom in (reduce bandwidth)
+                    bandwidth = max(0.1e6, bandwidth - zoom_step)
+                    draw_clearheader(stdscr)
+                elif key == ord('B'):  # Zoom out (increase bandwidth)
+                    bandwidth = min(sdr.sample_rate, bandwidth + zoom_step)
+                    draw_clearheader(stdscr)
+                elif key == ord('f'):  # Shift center frequency down
+                    sdr.set_center_freq(max(0, sdr.center_freq - freq_step))
+                    draw_clearheader(stdscr)
+                elif key == ord('F'):  # Shift center frequency up
+                    sdr.set_center_freq(sdr.center_freq + freq_step)
+                    draw_clearheader(stdscr)
+                elif key == ord('s'):  # Decrease samples
+                    SAMPLES -= 1
+                    if SAMPLES < 5:
+                        SAMPLES = 5
+                    draw_clearheader(stdscr)
+                elif key == ord('S'):  # Increase samples
+                    SAMPLES += 1
+                    if SAMPLES > 12:
+                        SAMPLES = 12
+                    draw_clearheader(stdscr)
+                elif key == ord('G'):
+                    gainindex +=1
+                    if gainindex <= len(sdr.valid_gains_db)-1:
+                        sdr.set_gain(sdr.valid_gains_db[gainindex])
+                    else:
+                        sdr.set_gain("auto")
+                        gainindex = -1
+                    draw_clearheader(stdscr)
+                elif key == ord('g'):
+                    gainindex -= 1
+                    if gainindex < 0:
+                        sdr.set_gain(sdr.valid_gains_db[0])
+                        gainindex = 0
+                    else:
+                        sdr.set_gain(sdr.valid_gains_db[gainindex])
+                    draw_clearheader(stdscr)
+                elif key == ord('k'):  # Save bookmark
+                    add_bookmark(stdscr, sdr.center_freq)
+                elif key == ord('l'):  # Load bookmark
+                    new_freq = show_bookmarks(stdscr)
+                    if new_freq is not None:
+                        sdr.set_center_freq(new_freq)
+                elif key == ord('R'):  # Start/Stop recording
+                    draw_clearheader(stdscr)
+                    if not audio_recording and AUDIO_AVAILABLE and audio_enabled:
+                        # Start recording
+                        timestamp = time.strftime("%Y%m%d-%H%M%S")
+                        filename = f"sdr_recording_{timestamp}.wav"
+                        wav_file = start_audio_recording(filename)
+                        audio_recording = True
+                        recording_start_time = time.time()
+                        stdscr.addstr(max_height-1, 0, f"Started recording to {filename}", 
+                                    curses.color_pair(4))
+                    elif audio_recording:
+                        # Stop recording
+                        stop_audio_recording(wav_file)
+                        audio_recording = False
+                        wav_file = None
+                        stdscr.addstr(max_height-1, 0, "Recording stopped", 
+                                    curses.color_pair(4))
+                    else:
+                        stdscr.addstr(max_height-1, 0, 
+                                      "Audio must be enabled to record (press 'a' first)", 
+                                      curses.color_pair(3))
+                    stdscr.refresh()
+                elif key == ord('w'):  # Save settings
+                    save_settings(sdr, bandwidth, freq_step, SAMPLES, AGC_ENABLED)
+                    stdscr.addstr(max_height-1, 0, "Settings saved", curses.color_pair(4))
+                    stdscr.refresh()
+                    time.sleep(1)  # Show message briefly
+                elif key == ord('v'):  # Toggle waterfall mode
+                    WATERFALL_MODE = not WATERFALL_MODE
+                    WATERFALL_HISTORY.clear()  # Clear history when switching modes
+                    stdscr.clear()
+                elif key == ord('r'):  # Load settings
+                    settings = load_settings()
+                    sdr.set_sample_rate(settings['sample_rate'])
+                    sdr.set_center_freq(settings['frequency'])
+                    sdr.set_gain(settings['gain'])
+                    bandwidth = settings['bandwidth']
+                    freq_step = settings['freq_step']
+                    SAMPLES = settings['samples']
+                    AGC_ENABLED = settings['agc_enabled']
+                    stdscr.addstr(max_height-1, 0, "Settings loaded", curses.color_pair(4))
+                    stdscr.refresh()
+                    time.sleep(1)  # Show message briefly
+                elif key == ord('A'):  # Toggle AGC
+                    draw_clearheader(stdscr)
+                    AGC_ENABLED = not AGC_ENABLED
+                    if not AGC_ENABLED:
+                        # Reset to manual gain mode
+                        if gainindex >= 0 and gainindex < len(sdr.valid_gains_db):
+                            sdr.set_gain(sdr.valid_gains_db[gainindex])
+                        else:
+                            sdr.set_gain('auto')
+                            gainindex = -1
+                elif key == ord('n'):  # Band presets
+                    new_freq, new_bandwidth = show_band_presets(stdscr)
+                    stdscr.clear()
+                    if new_freq is not None:
+                        sdr.set_center_freq(new_freq)
+                        bandwidth = new_bandwidth
+                        # Adjust gain for the new frequency range
+                        if AGC_ENABLED:
+                            # Force an immediate AGC update
+                            last_agc_update = 0
+                        show_popup_msg(stdscr,f"Switched to band: {new_freq/1e6:.3f} MHz")
+                elif key == ord('c'):  # Start frequency scanner
+                    # Get scanner configuration
+                    start_freq, end_freq, threshold = show_scanner_menu(stdscr)
+                    if start_freq is not None:
+                        SCAN_ACTIVE = True
                         signals = []
                         current_freq = start_freq
+                        
+                        # Scanning loop
                         while current_freq <= end_freq and SCAN_ACTIVE:
-                            # Update progress at top of screen
-                            draw_scanning_status(stdscr, current_freq, start_freq, end_freq)
+                            # Update progress display
+                            draw_scanning_status(stdscr, current_freq, start_freq, end_freq, sdr)
                             
-                            # Check for cancel key
+                            # Check for cancel
                             if stdscr.getch() == ord('q'):
                                 SCAN_ACTIVE = False
                                 break
                             
-                            # Scan chunk with user-defined threshold
-                            chunk_end = min(current_freq + sdr.sample_rate/2, end_freq)
-                            new_signals = scan_frequencies(sdr, current_freq, chunk_end, threshold)
-                            signals.extend(new_signals)
-                            current_freq = chunk_end + SCAN_STEP
+                            # Perform scan for current chunk
+                            try:
+                                # Set frequency and allow settling time
+                                sdr.set_center_freq(current_freq)
+                                time.sleep(0.01)  # Short settling time
+                                
+                                # Read samples and compute FFT
+                                samples = sdr.read_samples(2048)  # Reduced sample size for speed
+                                if len(samples) > 0:
+                                    # Compute power spectrum
+                                    spectrum = np.fft.fftshift(np.fft.fft(samples))
+                                    power_db = 10 * np.log10(np.abs(spectrum)**2 + 1e-10)
+                                    
+                                    # Find peak power
+                                    peak_power = np.max(power_db)
+                                    
+                                    # If signal detected
+                                    if peak_power > threshold:
+                                        # Estimate bandwidth
+                                        mask = power_db > (peak_power - 20)  # Points within 20dB of peak
+                                        bandwidth = np.sum(mask) * (sdr.sample_rate / len(power_db))
+                                        
+                                        # Only add if bandwidth is reasonable
+                                        if bandwidth > MIN_SIGNAL_BANDWIDTH:
+                                            signals.append({
+                                                'frequency': current_freq,
+                                                'power': peak_power,
+                                                'bandwidth': bandwidth,
+                                                'type': classify_signal(samples, sdr.sample_rate, bandwidth)
+                                            })
+                                            
+                                            # Debug output
+                                            stdscr.addstr(max_height-1, 0, 
+                                                        f"Signal found: {current_freq/1e6:.3f} MHz, "
+                                                        f"Power: {peak_power:.1f} dB, "
+                                                        f"BW: {bandwidth/1e3:.1f} kHz", 
+                                                        curses.color_pair(4))
+                                            stdscr.refresh()
+                            
+                            except Exception as e:
+                                stdscr.addstr(max_height-1, 0, 
+                                            f"Scan error ({type(e).__name__}): {str(e)}", 
+                                            curses.color_pair(3))
+                                stdscr.refresh()
+                            
+                            # Move to next frequency
+                            current_freq += SCAN_STEP
                         
-                        # Show results if not cancelled
-                        if SCAN_ACTIVE:
-                            # Sort signals by power
-                            signals.sort(key=lambda x: x['power'], reverse=True)
+                        # After scanning, store results globally
+                        if signals:
+                            global LAST_SCAN_RESULTS
+                            LAST_SCAN_RESULTS = signals.copy()  # Store a copy of the results
+                            
+                            # Display results and get selected frequency
                             new_freq = display_scan_results(stdscr, signals, threshold)
-                            if new_freq is not None:
-                                sdr.center_freq = new_freq
-                    
-                    finally:
-                        # Restore settings
+                            
+                            # ... rest of existing scanning code ...
+                        
+                        # Reset scan state
                         SCAN_ACTIVE = False
-                        sdr.gain = old_gain
-                        if new_freq is None:
-                            sdr.center_freq = old_freq
-            elif key == ord('d'):  # Change demodulation mode
-                new_mode = show_demod_menu(stdscr)
-                if new_mode is not None:
-                    CURRENT_DEMOD = new_mode
-                    # Update bandwidth based on mode
-                    if DEMOD_MODES[CURRENT_DEMOD]['bandwidth']:
-                        bandwidth = DEMOD_MODES[CURRENT_DEMOD]['bandwidth']
-                    stdscr.addstr(max_height-1, 0, 
-                                f"Switched to {DEMOD_MODES[CURRENT_DEMOD]['name']} mode", 
-                                curses.color_pair(4))
-                    stdscr.refresh()
-                    time.sleep(1)
-            elif key == ord('m'):  # Mode switch
-                current_mode_index = DISPLAY_MODES.index(current_display_mode)
-                current_display_mode = DISPLAY_MODES[(current_mode_index + 1) % len(DISPLAY_MODES)]
-                stdscr.clear()
-            elif key == ord('1'):  # Spectrum Mode switch
-                current_mode_index = 0
-                current_display_mode = DISPLAY_MODES[0]
-                stdscr.clear()
-            elif key == ord('2'):  # Waterfall Mode switch
-                current_mode_index = 1
-                current_display_mode = DISPLAY_MODES[1]
-                stdscr.clear()
-            elif key == ord('3'):  # Persistence Mode switch
-                current_mode_index = 2
-                current_display_mode = DISPLAY_MODES[2]
-                stdscr.clear()
-            elif key == ord('4'):  # Surface Mode switch
-                current_mode_index = 3
-                current_display_mode = DISPLAY_MODES[3]
-                stdscr.clear()
-            elif key == ord('5'):  # Gradient Mode switch
-                current_mode_index = 4
-                current_display_mode = DISPLAY_MODES[4]
-                stdscr.clear()
-            elif key == ord('6'):  # Vector Mode switch
-                current_mode_index = 5
-                current_display_mode = DISPLAY_MODES[5]
-                stdscr.clear()
+                        stdscr.clear()
+                elif key == ord('d'):  # Change demodulation mode
+                    new_mode = show_demod_menu(stdscr)
+                    if new_mode is not None:
+                        CURRENT_DEMOD = new_mode
+                        # Update bandwidth based on mode
+                        if DEMOD_MODES[CURRENT_DEMOD]['bandwidth']:
+                            bandwidth = DEMOD_MODES[CURRENT_DEMOD]['bandwidth']
+                        stdscr.addstr(max_height-1, 0, 
+                                    f"Switched to {DEMOD_MODES[CURRENT_DEMOD]['name']} mode", 
+                                    curses.color_pair(4))
+                        stdscr.refresh()
+                        time.sleep(1)
+                elif key == ord('m'):  # Mode switch
+                    current_mode_index = DISPLAY_MODES.index(current_display_mode)
+                    current_display_mode = DISPLAY_MODES[(current_mode_index + 1) % len(DISPLAY_MODES)]
+                    stdscr.clear()
+                elif key == ord('1'):  # Spectrum Mode switch
+                    current_mode_index = 0
+                    current_display_mode = DISPLAY_MODES[0]
+                    stdscr.clear()
+                elif key == ord('2'):  # Waterfall Mode switch
+                    current_mode_index = 1
+                    current_display_mode = DISPLAY_MODES[1]
+                    stdscr.clear()
+                elif key == ord('3'):  # Persistence Mode switch
+                    current_mode_index = 2
+                    current_display_mode = DISPLAY_MODES[2]
+                    stdscr.clear()
+                elif key == ord('4'):  # Surface Mode switch
+                    current_mode_index = 3
+                    current_display_mode = DISPLAY_MODES[3]
+                    stdscr.clear()
+                elif key == ord('5'):  # Gradient Mode switch
+                    current_mode_index = 4
+                    current_display_mode = DISPLAY_MODES[4]
+                    stdscr.clear()
+                elif key == ord('6'):  # Vector Mode switch
+                    current_mode_index = 5
+                    current_display_mode = DISPLAY_MODES[5]
+                    stdscr.clear()
+                elif key == ord('P'):  # Increase PPM
+                    draw_clearheader(stdscr)
+                    if sdr.ppm < 1000:  # Add reasonable limit
+                        sdr.set_ppm(sdr.ppm + 1)
+                elif key == ord('p'):  # Decrease PPM
+                    draw_clearheader(stdscr)
+                    if sdr.ppm > -1000:  # Add reasonable limit
+                        sdr.set_ppm(sdr.ppm - 1)
+                elif key == ord('O'):  # Set PPM value directly
+                    draw_clearheader(stdscr)
+                    stdscr.addstr(0, 0, "Enter PPM value (-1000 to 1000): ", 
+                                 curses.color_pair(1) | curses.A_BOLD)
+                    curses.echo()
+                    curses.curs_set(1)
+                    stdscr.nodelay(False)
+                    try:
+                        ppm = int(stdscr.getstr().decode('utf-8'))
+                        draw_clearheader(stdscr)
+                        if -1000 <= ppm <= 1000:  # Add range check
+                            sdr.set_ppm(ppm)
+                        else:
+                            stdscr.addstr(0, 0, "PPM value must be between -1000 and 1000", 
+                                         curses.color_pair(3) | curses.A_BOLD)
+                            stdscr.refresh()
+                            time.sleep(1)
+                    except ValueError:
+                        stdscr.addstr(0, 0, "Invalid PPM value", 
+                                     curses.color_pair(3) | curses.A_BOLD)
+                        stdscr.refresh()
+                        time.sleep(1)
+                    finally:
+                        stdscr.nodelay(True)
+                        curses.noecho()
+                        curses.curs_set(0)
 
-            # Remove the separate recording duration display since it's now handled in draw_spectrogram
-            if audio_recording and AUDIO_AVAILABLE and audio_enabled:
-                if len(audio_buffer) > 0:
-                    audio_data = np.concatenate(list(audio_buffer))
-                    write_audio_samples(wav_file, audio_data)
-                    audio_buffer.clear()
+                # Remove the separate recording duration display since it's now handled in draw_spectrogram
+                if audio_recording and AUDIO_AVAILABLE and audio_enabled:
+                    if len(audio_buffer) > 0:
+                        audio_data = np.concatenate(list(audio_buffer))
+                        write_audio_samples(wav_file, audio_data)
+                        audio_buffer.clear()
+
+                # Add new key handler for showing last results
+                elif key == ord('C'):  # Show last scan results
+                    if LAST_SCAN_RESULTS:
+                        stdscr.nodelay(False)
+                        curses.flushinp()
+                        
+                        # Display the stored results
+                        new_freq = display_scan_results(stdscr, LAST_SCAN_RESULTS, SIGNAL_THRESHOLD)
+                        
+                        # If frequency was selected, tune to it
+                        if new_freq is not None:
+                            sdr.set_center_freq(new_freq)
+                        
+                        stdscr.nodelay(True)
+                        stdscr.clear()
+                    else:
+                        # Show message if no previous scan results exist
+                        draw_clearheader(stdscr)
+                        stdscr.addstr(0, 0, "No previous scan results available", curses.color_pair(3))
+                        stdscr.refresh()
+                        time.sleep(2)
+                        draw_clearheader(stdscr)
+
+            except curses.error:
+                # Handle curses errors (like terminal resize)
+                continue
 
     except KeyboardInterrupt:
         pass
