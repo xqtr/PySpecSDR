@@ -99,25 +99,23 @@ Features Added:
   - 'C' key shows results from most recent frequency scan
   - Maintains scan history between sessions
 
-Improvements:
-! All characters now use lower ASCII for better compatibility
-! All visual modes now have consistent frequency labels
-! Improved signal detection algorithm
-! Fixed/standardized look across all display modes
+#### Improvements:
+* ! All characters now use lower ASCII for better compatibility
+* ! All visual modes now have consistent frequency labels
+* ! Improved signal detection algorithm
+* ! Fixed/standardized look across all display modes
 
-Bug Fixes:
-! Fixed inconsistent character display in some terminals
-! Fixed frequency label alignment issues
-! Fixed bookmark sorting and display
-! Improved error handling for PPM settings
-! Fixed memory leak in waterfall display
+#### Bug Fixes:
+* ! Fixed inconsistent character display in some terminals
+* ! Fixed frequency label alignment issues
+* ! Fixed bookmark sorting and display
+* ! Improved error handling for PPM settings
+* ! Fixed memory leak in waterfall display
 
 Note: This version maintains backward compatibility with existing configuration files and bookmarks.
 
 ## ToDo:
 * Fix bugs
-* Add recording status to all visual modes
-* Better management for bookmarks (DONE)
 
 ## Showcase
 ![spectrum-vis](https://cp737.net/files/pyspecsdr/spectrum.png)
