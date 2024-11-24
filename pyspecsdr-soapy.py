@@ -133,53 +133,36 @@ SCAN_ACTIVE = False    # Global flag for scan state
 
 # Add near the top of the file with other constants
 BAND_PRESETS = {
-    # Existing bands
-    'FM': (88e6, 108e6, "FM Radio"),
-    'AM': (535e3, 1.7e6, "AM Radio"),
-    'AIR': (118e6, 137e6, "Aircraft Band"),
-    'WX': (162.4e6, 162.55e6, "Weather Radio"),
-    'HAM2M': (144e6, 148e6, "2m Amateur Radio"),
-    'HAM70CM': (420e6, 450e6, "70cm Amateur Radio"),
-    'NOAA': (137e6, 138e6, "NOAA Weather Satellites"),
-    'ADS-B': (1090e6, 1090e6, "ADS-B Aircraft Tracking"),
-    'DAB': (174e6, 240e6, "Digital Audio Broadcasting"),
-    'ISM': (433.05e6, 434.79e6, "ISM Band"),
-    
-    # Additional bands
-    'HAM160M': (1.8e6, 2.0e6, "160m Amateur Radio"),
-    'HAM80M': (3.5e6, 4.0e6, "80m Amateur Radio"),
-    'HAM40M': (7.0e6, 7.3e6, "40m Amateur Radio"),
-    'HAM20M': (14.0e6, 14.35e6, "20m Amateur Radio"),
-    'HAM15M': (21.0e6, 21.45e6, "15m Amateur Radio"),
-    'HAM10M': (28.0e6, 29.7e6, "10m Amateur Radio"),
-    'HAM6M': (50e6, 54e6, "6m Amateur Radio"),
-    'HAM1.25M': (222e6, 225e6, "1.25m Amateur Radio"),
-    'HAM33CM': (902e6, 928e6, "33cm Amateur Radio"),
-    'HAM23CM': (1240e6, 1300e6, "23cm Amateur Radio"),
-    'SW': (2.3e6, 26.1e6, "Shortwave Radio"),
-    'CB': (26.965e6, 27.405e6, "Citizens Band Radio"),
-    'PMR': (446e6, 446.2e6, "PMR446 (Europe)"),
-    'MARINE': (156e6, 162e6, "Marine VHF"),
-    'GSM900': (925e6, 960e6, "GSM900 Downlink"),
-    'GSM1800': (1805e6, 1880e6, "GSM1800 Downlink"),
-    'DECT': (1880e6, 1900e6, "DECT Cordless Phones"),
-    'LTE800': (791e6, 821e6, "LTE Band 20 Downlink"),
-    'LTE2600': (2620e6, 2690e6, "LTE Band 7 Downlink"),
-    'WIFI2.4': (2412e6, 2484e6, "WiFi 2.4 GHz"),
-    'WIFI5': (5170e6, 5835e6, "WiFi 5 GHz"),
-    'LPDFM': (87.9e6, 92e6, "Low Power FM"),
-    'DRM': (3.95e6, 26.1e6, "Digital Radio Mondiale"),
-    'DAB+': (174e6, 230e6, "DAB+ Digital Radio"),
-    'FM': (88e6, 108e6, "FM Radio"),
-    'AM': (535e3, 1.7e6, "AM Radio"),
-    'AIR': (118e6, 137e6, "Aircraft Band"),
-    'WX': (162.4e6, 162.55e6, "Weather Radio"),
-    'HAM2M': (144e6, 148e6, "2m Amateur Radio"),
-    'HAM70CM': (420e6, 450e6, "70cm Amateur Radio"),
-    'NOAA': (137e6, 138e6, "NOAA Weather Satellites"),
-    'ADS-B': (1090e6, 1090e6, "ADS-B Aircraft Tracking"),
-    'DAB': (174e6, 240e6, "Digital Audio Broadcasting"),
-    'ISM': (433.05e6, 434.79e6, "ISM Band")
+    'FM': (87.5e6, 108e6, 'FM Broadcast Radio'),
+    'AIR': (108e6, 137e6, 'Aircraft Band'),
+    'NOAA': (137e6, 138e6, 'Weather Satellites'),
+    'MARINE': (156e6, 162e6, 'Marine VHF'),
+    'POLICE': (162e6, 174e6, 'Police/Emergency'),
+    'DAB': (174e6, 240e6, 'Digital Audio Broadcasting'),
+    'ISM433': (433.05e6, 434.79e6, '433MHz ISM Band'),
+    'HAM70': (420e6, 450e6, '70cm Amateur Band'),
+    'TELE': (470e6, 862e6, 'TV Broadcasting'),
+    'GSM900': (880e6, 960e6, 'GSM 900 Band'),
+    'ADS-B': (1090e6, 1091e6, 'Aircraft Tracking'),
+    'HAM23': (1240e6, 1300e6, '23cm Amateur Band'),
+    'GPS': (1575.42e6, 1576.42e6, 'GPS L1'),
+    'INMAR': (1525e6, 1559e6, 'Inmarsat'),
+    'RADIO': (1452e6, 1492e6, 'Digital Radio'),
+    'GSM1800': (1710e6, 1880e6, 'GSM 1800 Band'),
+    'LTE': (1920e6, 2170e6, '3G/4G Mobile'),
+    'WIFI': (2400e6, 2500e6, 'WiFi/Bluetooth'),
+    'SAT': (2500e6, 2700e6, 'Satellite Services'),
+    'ISM5G': (5725e6, 5875e6, '5.8GHz ISM Band')
+}
+
+# Optional: Add specific bandwidth recommendations for certain bands
+BAND_BANDWIDTHS = {
+    'FM': 200e3,      # FM broadcast channels are ~200kHz wide
+    'NOAA': 40e3,     # NOAA APT signals are ~40kHz wide
+    'ISM433': 100e3,  # Common bandwidth for 433MHz devices
+    'ADS-B': 2e6,     # ADS-B requires wider bandwidth
+    'GPS': 2e6,       # GPS signals need wider bandwidth
+    'WIFI': 20e6      # WiFi channels are typically 20MHz wide
 }
 
 # Add these constants near the top with other constants
@@ -515,7 +498,7 @@ def draw_header(stdscr, freq_data, frequencies, center_freq, bandwidth, gain, st
 
 def draw_spectrogram(stdscr, freq_data, frequencies, center_freq, bandwidth, gain, step, 
                     sdr, is_recording=False, recording_duration=None):
-    """Draw the spectrum display"""
+    """Draw the spectrum display with improved signal-to-noise ratio visualization"""
     max_height, max_width = stdscr.getmaxyx()
     
     # Calculate display dimensions
@@ -529,13 +512,21 @@ def draw_spectrogram(stdscr, freq_data, frequencies, center_freq, bandwidth, gai
         except curses.error:
             pass
     
-    # Normalize data for display
-    min_val = np.min(freq_data[np.isfinite(freq_data)])
-    max_val = np.max(freq_data[np.isfinite(freq_data)])
+    # Set fixed dB range for display with noise floor adjustment
+    min_db = np.min(freq_data[np.isfinite(freq_data)])
+    max_db = np.max(freq_data[np.isfinite(freq_data)])
+    
+    # Calculate noise floor (using lower percentile)
+    noise_floor = np.percentile(freq_data[np.isfinite(freq_data)], 20)
+    
+    # Adjust dynamic range to emphasize signals above noise
+    db_range = max_db - noise_floor
+    display_min = noise_floor - (db_range * 0.1)  # Show some noise below floor
+    display_max = max_db + (db_range * 0.05)  # Add headroom
     
     # Draw dB scale on the left
     for i in range(display_height):
-        db_value = max_val - (i * (max_val - min_val) / display_height)
+        db_value = display_max - (i * (display_max - display_min) / display_height)
         if i % 3 == 0:  # Show scale every 3 lines
             db_label = f"{db_value:4.0f}dB"
             try:
@@ -545,52 +536,55 @@ def draw_spectrogram(stdscr, freq_data, frequencies, center_freq, bandwidth, gai
             except curses.error:
                 pass
 
+    # Normalize data for display using adjusted range
+    normalized_data = np.clip((freq_data - display_min) / (display_max - display_min), 0, 1)
+    
+    # Apply non-linear scaling to emphasize signals
+    normalized_data = np.power(normalized_data, 0.7)  # Adjust exponent to taste
+    
     # Resample data to fit display width
     resampled = np.interp(
-        np.linspace(0, len(freq_data) - 1, display_width),
-        np.arange(len(freq_data)),
-        freq_data
+        np.linspace(0, len(normalized_data) - 1, display_width),
+        np.arange(len(normalized_data)),
+        normalized_data
     )
     
-    # Draw spectrum
+    # Draw spectrum with improved character selection
     for x, value in enumerate(resampled):
         if np.isfinite(value):
-            # Calculate height for this value
-            normalized = (value - min_val) / (max_val - min_val)
-            height = int(normalized * display_height)
+            # Calculate height in display units
+            height = int(value * display_height)
+            height = min(height, display_height)
             
-            # Draw vertical bar using ASCII characters
+            # First clear the entire column
+            for y in range(display_height):
+                try:
+                    stdscr.addstr(y + 2, x + 9, " ", curses.color_pair(1))
+                except curses.error:
+                    pass
+            
+            # Then draw the bar with varied characters based on signal strength
             for y in range(display_height - height, display_height):
                 try:
-                    if normalized > 0.75:
-                        char = "#"
-                    elif normalized > 0.5:
-                        char = "="
-                    elif normalized > 0.25:
-                        char = "-"
-                    else:
-                        char = "."
+                    # Calculate relative position in the bar
+                    rel_pos = (y - (display_height - height)) / height if height > 0 else 0
+                    
+                    # Select character based on signal strength and position
+                    if value > 0.8:  # Strong signals
+                        char = "#" if rel_pos > 0.5 else "="
+                    elif value > 0.4:  # Medium signals
+                        char = "=" if rel_pos > 0.5 else "-"
+                    elif value > 0.2:  # Weak signals
+                        char = "-" if rel_pos > 0.5 else "."
+                    else:  # Noise level
+                        char = "." if rel_pos > 0.7 else " "
                     
                     stdscr.addstr(y + 2, x + 9, char, curses.color_pair(1))
                 except curses.error:
                     pass
 
-    # Draw frequency labels
-    half_bw = bandwidth / 2
-    freq_step = bandwidth / 5
-    
-    # Draw horizontal axis using ASCII
-    try:
-        stdscr.addstr(display_height + 2, 9, "+" + "-" * (display_width - 1), 
-                     curses.color_pair(2))
-    except curses.error:
-        pass
-    
     # Use standardized frequency labels
     draw_frequency_labels(stdscr, center_freq, bandwidth, display_height, display_width)
-
-    # Refresh the screen
-    stdscr.refresh()
 
 def demodulate_signal(samples, sample_rate, mode='FM'):
     """Advanced demodulation function supporting multiple modes"""
@@ -987,7 +981,12 @@ def show_band_presets(stdscr):
         for i, (key, (start, end, description)) in enumerate(current_items, 1):
             # Calculate absolute index for selection
             abs_index = start_idx + i
-            line = f"{abs_index:2d}. {key:<8} : {description:<25} ({start/1e6:.3f}-{end/1e6:.3f} MHz)"
+            # Add recommended bandwidth to display if available
+            if key in BAND_BANDWIDTHS:
+                bw_info = f" (BW: {BAND_BANDWIDTHS[key]/1e3:.0f}kHz)"
+            else:
+                bw_info = ""
+            line = f"{abs_index:2d}. {key:<8} : {description:<25}{bw_info} ({start/1e6:.3f}-{end/1e6:.3f} MHz)"
             try:
                 stdscr.addstr(i + 2, 2, line, curses.color_pair(2))
             except curses.error:
@@ -1024,9 +1023,12 @@ def show_band_presets(stdscr):
                     # Get selected band
                     band_key = list(BAND_PRESETS.keys())[choice_num - 1]
                     start, end, _ = BAND_PRESETS[band_key]
-                    center_freq = start + (end - start)/2
-                    bandwidth = min(end - start, 2e6)  # Limit bandwidth to 2MHz or band width
-                    return center_freq, bandwidth
+                    # Use recommended bandwidth if available, otherwise calculate
+                    if band_key in BAND_BANDWIDTHS:
+                        bandwidth = BAND_BANDWIDTHS[band_key]
+                    else:
+                        bandwidth = min(end - start, 2e6)  # Limit bandwidth to 2MHz or band width
+                    return start + (end - start)/2, bandwidth
             except ValueError:
                 pass
                 
@@ -1424,13 +1426,29 @@ def draw_waterfall(stdscr, freq_data, frequencies, center_freq, bandwidth, gain,
 def draw_frequency_labels(stdscr, center_freq, bandwidth, display_height, display_width, x_offset=9):
     """Standardized function to draw frequency labels and axis using ASCII only"""
     try:
-        # Draw horizontal axis with ASCII characters
-        stdscr.addstr(display_height + 2, x_offset, "+" + "-" * (display_width - 1), 
-                     curses.color_pair(2))
-        
-        # Calculate frequency steps and format labels
+        # Draw horizontal axis background to reflect center frequency
         half_bw = bandwidth / 2
         start_freq = center_freq - half_bw
+        end_freq = center_freq + half_bw
+        
+        # Calculate center marker width proportional to bandwidth
+        # For example: 2MHz -> 4 chars, 1MHz -> 2 chars, 0.5MHz -> 1 char
+        center_marker_width = max(1, int(bandwidth / 250000))  # 1 char per 500kHz
+        center_x = display_width // 2  # Center position in display units
+        
+        # Draw the axis background with different characters for different frequency ranges
+        axis_line = ""
+        for x in range(display_width):
+            # Use different characters based on position relative to center
+            if abs(x - center_x) < center_marker_width:  # Center marker
+                axis_line += "="
+            else:
+                axis_line += "-"  # Same character for both sides
+        
+        # Draw the axis with background
+        stdscr.addstr(display_height + 2, x_offset, axis_line, curses.color_pair(2))
+        
+        # Calculate frequency steps and format labels
         freq_step = bandwidth / 5
         
         # Draw frequency labels and tick marks
@@ -1441,7 +1459,7 @@ def draw_frequency_labels(stdscr, center_freq, bandwidth, display_height, displa
             
             try:
                 # Draw tick mark
-                stdscr.addstr(display_height + 2, pos, "+", curses.color_pair(2))
+                stdscr.addstr(display_height + 2, pos, "|", curses.color_pair(2))
                 
                 # Center the label under the tick mark
                 label_pos = max(pos - len(label)//2, x_offset)
@@ -1821,8 +1839,7 @@ class SDRDevice:
             for idx, name, _ in devices:
                 self.stdscr.addstr(idx + 1, 0, f"{idx}. {name}", curses.color_pair(2))
             
-            self.stdscr.addstr(len(devices) + 3, 0, "Select device (1-{}): ".format(len(devices)), 
-                             curses.color_pair(1) | curses.A_BOLD)
+            self.stdscr.addstr(len(devices) + 3, 0, "Select device (1-{}): ".format(len(devices)), curses.color_pair(1) | curses.A_BOLD)
             
             # Get user input
             curses.echo()
@@ -1856,11 +1873,7 @@ class SDRDevice:
             # Create device instance with selected device
             self.device = SoapySDR.Device(args)
             
-            # Setup RX stream
-            self.stream = self.device.setupStream(SOAPY_SDR_RX, SOAPY_SDR_CF32)
-            self.device.activateStream(self.stream)
-            
-            # Set initial parameters
+            # Set initial parameters BEFORE creating the stream
             self.set_sample_rate(self.sample_rate)
             self.set_center_freq(self.center_freq)
             self.set_gain(self.gain)
@@ -1868,6 +1881,10 @@ class SDRDevice:
             
             # Initialize gain range
             self._valid_gains = self._get_valid_gains()
+            
+            # Setup RX stream AFTER setting parameters
+            self.stream = self.device.setupStream(SOAPY_SDR_RX, SOAPY_SDR_CF32)
+            self.device.activateStream(self.stream)
                 
         except Exception as e:
             raise RuntimeError(f"Error initializing SoapySDR device: {e}")
@@ -2077,33 +2094,44 @@ def main(stdscr):
                 num_bins = 1024  # Reduced from 2048
                 freq_bins = np.fft.fftshift(np.fft.fftfreq(num_bins, d=1/sdr.sample_rate)) + sdr.center_freq
 
-                # Compute FFT
-                fft_data = np.fft.fftshift(np.fft.fft(samples[:num_bins], num_bins))
-                power_spectrum = 10 * np.log10(np.abs(fft_data)**2)
-
+                # Compute FFT with improved processing
+                fft = np.fft.fft(samples * np.hamming(len(samples)))
+                fft = np.fft.fftshift(fft)
+                
+                # Compute power spectrum with better noise handling
+                freq_data = 20 * np.log10(np.abs(fft) + 1e-10)
+                
+                # Apply moving average smoothing
+                window_size = 5
+                freq_data = np.convolve(freq_data, np.ones(window_size)/window_size, mode='valid')
+                
+                # Apply additional noise reduction
+                noise_threshold = np.median(freq_data) - 10
+                freq_data[freq_data < noise_threshold] = noise_threshold
+                
                 # Update the draw_spectrogram call to include recording status
                 recording_duration = time.time() - recording_start_time if audio_recording else None
                 
-                draw_header(stdscr, power_spectrum, freq_bins, sdr.center_freq, bandwidth, sdr.gain, freq_step, sdr, audio_recording, recording_duration)
+                draw_header(stdscr, freq_data, freq_bins, sdr.center_freq, bandwidth, sdr.gain, freq_step, sdr, audio_recording, recording_duration)
                 
                 if current_display_mode == 'SPECTRUM':
-                    draw_spectrogram(stdscr, power_spectrum, freq_bins, sdr.center_freq, 
+                    draw_spectrogram(stdscr, freq_data, freq_bins, sdr.center_freq, 
                                    bandwidth, sdr.gain, freq_step, sdr,  # Add sdr here
                                    audio_recording, recording_duration)
                 elif current_display_mode == 'WATERFALL':
-                    draw_waterfall(stdscr, power_spectrum, freq_bins, sdr.center_freq, 
+                    draw_waterfall(stdscr, freq_data, freq_bins, sdr.center_freq, 
                                  bandwidth, sdr.gain, freq_step, sdr,  # Add sdr here
                                  audio_recording, recording_duration)
                 elif current_display_mode == 'PERSISTENCE':
-                    draw_persistence(stdscr, power_spectrum, freq_bins, sdr.center_freq,
+                    draw_persistence(stdscr, freq_data, freq_bins, sdr.center_freq,
                                    bandwidth, sdr.gain, freq_step, sdr,  # Add sdr here
                                    audio_recording, recording_duration)
                 elif current_display_mode == 'SURFACE':
-                    draw_surface_plot(stdscr, power_spectrum, freq_bins, sdr.center_freq,
+                    draw_surface_plot(stdscr, freq_data, freq_bins, sdr.center_freq,
                                   bandwidth, sdr.gain, freq_step, sdr,  # Add sdr here
                                   audio_recording, recording_duration)
                 elif current_display_mode == 'GRADIENT':
-                    draw_gradient_waterfall(stdscr, power_spectrum, freq_bins, sdr.center_freq,
+                    draw_gradient_waterfall(stdscr, freq_data, freq_bins, sdr.center_freq,
                                            bandwidth, sdr.gain, freq_step, sdr,
                                            audio_recording, recording_duration)
                 elif current_display_mode == 'VECTOR':
@@ -2400,37 +2428,36 @@ def main(stdscr):
                 elif key == ord('P'):  # Increase PPM
                     draw_clearheader(stdscr)
                     if sdr.ppm < 1000:  # Add reasonable limit
-                        sdr.set_ppm(sdr.ppm + 1)
+                        if sdr.set_ppm(sdr.ppm + 1):
+                            show_popup_msg(stdscr, f"PPM set to {sdr.ppm}")
+                        else:
+                            show_popup_msg(stdscr, "Failed to set PPM", error=True)
                 elif key == ord('p'):  # Decrease PPM
                     draw_clearheader(stdscr)
                     if sdr.ppm > -1000:  # Add reasonable limit
-                        sdr.set_ppm(sdr.ppm - 1)
-                elif key == ord('O'):  # Set PPM value directly
+                        if sdr.set_ppm(sdr.ppm - 1):
+                            show_popup_msg(stdscr, f"PPM set to {sdr.ppm}")
+                        else:
+                            show_popup_msg(stdscr, "Failed to set PPM", error=True)
+                elif key == ord('O'):  # Set exact PPM value
                     draw_clearheader(stdscr)
-                    stdscr.addstr(0, 0, "Enter PPM value (-1000 to 1000): ", 
+                    stdscr.addstr(0, 0, "Enter PPM correction value: ", 
                                  curses.color_pair(1) | curses.A_BOLD)
                     curses.echo()
                     curses.curs_set(1)
                     stdscr.nodelay(False)
                     try:
                         ppm = int(stdscr.getstr().decode('utf-8'))
-                        draw_clearheader(stdscr)
-                        if -1000 <= ppm <= 1000:  # Add range check
-                            sdr.set_ppm(ppm)
+                        if sdr.set_ppm(ppm):
+                            show_popup_msg(stdscr, f"PPM set to {sdr.ppm}")
                         else:
-                            stdscr.addstr(0, 0, "PPM value must be between -1000 and 1000", 
-                                         curses.color_pair(3) | curses.A_BOLD)
-                            stdscr.refresh()
-                            time.sleep(1)
+                            show_popup_msg(stdscr, "Failed to set PPM", error=True)
                     except ValueError:
-                        stdscr.addstr(0, 0, "Invalid PPM value", 
-                                     curses.color_pair(3) | curses.A_BOLD)
-                        stdscr.refresh()
-                        time.sleep(1)
+                        show_popup_msg(stdscr, "Invalid PPM value!", error=True)
                     finally:
-                        stdscr.nodelay(True)
                         curses.noecho()
                         curses.curs_set(0)
+                        stdscr.nodelay(True)
 
                 # Remove the separate recording duration display since it's now handled in draw_spectrogram
                 if audio_recording and AUDIO_AVAILABLE and audio_enabled:
@@ -2477,6 +2504,27 @@ def main(stdscr):
         # Make sure to close the WAV file if we exit while recording
         if wav_file:
             stop_audio_recording(wav_file)
+
+def compute_fft(samples):
+    """Compute normalized FFT with proper scaling"""
+    # Apply window function to reduce spectral leakage
+    window = np.hamming(len(samples))
+    windowed_samples = samples * window
+    
+    # Compute FFT and shift zero frequency to center
+    fft = np.fft.fftshift(np.fft.fft(windowed_samples))
+    
+    # Convert to power spectrum in dB, with proper scaling
+    power_db = 20 * np.log10(np.abs(fft) + 1e-10)
+    
+    # Apply calibration factors
+    system_gain = -30  # Adjustment for system gain
+    ref_level = -70   # Reference level adjustment
+    
+    # Apply calibration and clip to reasonable range
+    power_db = np.clip(power_db + system_gain + ref_level, -100, -20)
+    
+    return power_db
 
 if __name__ == "__main__":
     curses.wrapper(main)
