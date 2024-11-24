@@ -31,38 +31,11 @@ Requirements:
 
 License: GPL-3.0-or-later
 
-## Key Shortcuts
-* f/F : Dec/Increase Center Frequency
-* b/B : Dec/Increase Bandwidth
-* s/S : Dec/Increase Samples
-* t/T : Dec/Increase Step
-* x   : Type in center frequency. Ex. 144800000, 144.8M, 144800K.
-* k   : Save currenct frequncy as Bookmark
-* l   : Load a bookmark
-* a   : Toggle Audio On/Off
-* R   : Start/Stop audio recording
-* A   : Toggle AGC
-* p   : Select Band Preset
-* c   : Frequncy Scanner
-* w   : Save Current Settings. Will be loaded next time as default.
-* d   : Select demodulation mode
-* m   : Cycle through visualization modes
-* 1   : Spectrum Visualization
-* 2   : Waterfall Visualization
-* 3   : Persistence Spectrum Visualization
-* 4   : Surface Visualization
-* 5   : Gradient Visualization
-* 6   : Vector Visualization
-* Up  : Increase Freq. by 1MHz
-* Down: Decrease Freq. by 1MHz
-* Left: Decrease Freq. by 0.5MHz
-* Rigt: Increase Freq. by 0.5MHz
-
 ## PySpecSDR Changelog
 
 ### Version 1.0.1 (2024/11/22)
 
-Features Added:
+#### Features Added:
 + Added PPM (Parts Per Million) frequency correction functionality
   - New 'P'/'p' keys to increase/decrease PPM correction
   - New 'O' key to set exact PPM correction value
@@ -112,7 +85,17 @@ Features Added:
 * ! Improved error handling for PPM settings
 * ! Fixed memory leak in waterfall display
 
-Note: This version maintains backward compatibility with existing configuration files and bookmarks.
+### Version 1.0.2 (2024/11/24)
+
+#### Features Added:
++ The x axis has a center marker, with adjustable width, proportional to Bandwidth
+
+#### Improvements:
+* Adjusted calculation for better spectrogram/waterfall visualization
+  
+#### Bug Fixes:
+* Fixed Initialization process for LimeSDR
+* Revert spectrogram drawing to first release
 
 ## ToDo:
 * Fix bugs
