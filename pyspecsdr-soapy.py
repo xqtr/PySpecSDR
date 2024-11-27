@@ -133,36 +133,102 @@ SCAN_ACTIVE = False    # Global flag for scan state
 
 # Add near the top of the file with other constants
 BAND_PRESETS = {
-    'FM': (87.5e6, 108e6, 'FM Broadcast Radio'),
-    'AIR': (108e6, 137e6, 'Aircraft Band'),
-    'NOAA': (137e6, 138e6, 'Weather Satellites'),
-    'MARINE': (156e6, 162e6, 'Marine VHF'),
-    'POLICE': (162e6, 174e6, 'Police/Emergency'),
-    'DAB': (174e6, 240e6, 'Digital Audio Broadcasting'),
-    'ISM433': (433.05e6, 434.79e6, '433MHz ISM Band'),
-    'HAM70': (420e6, 450e6, '70cm Amateur Band'),
-    'TELE': (470e6, 862e6, 'TV Broadcasting'),
-    'GSM900': (880e6, 960e6, 'GSM 900 Band'),
-    'ADS-B': (1090e6, 1091e6, 'Aircraft Tracking'),
-    'HAM23': (1240e6, 1300e6, '23cm Amateur Band'),
-    'GPS': (1575.42e6, 1576.42e6, 'GPS L1'),
-    'INMAR': (1525e6, 1559e6, 'Inmarsat'),
-    'RADIO': (1452e6, 1492e6, 'Digital Radio'),
-    'GSM1800': (1710e6, 1880e6, 'GSM 1800 Band'),
-    'LTE': (1920e6, 2170e6, '3G/4G Mobile'),
-    'WIFI': (2400e6, 2500e6, 'WiFi/Bluetooth'),
-    'SAT': (2500e6, 2700e6, 'Satellite Services'),
-    'ISM5G': (5725e6, 5875e6, '5.8GHz ISM Band')
+    # Amateur Radio Bands
+    'HAM160': (1.8e6, 2.0e6, "160m Amateur Band"),
+    'HAM80': (3.5e6, 4.0e6, "80m Amateur Band"),
+    'HAM60': (5.3515e6, 5.3665e6, "60m Amateur Band"),
+    'HAM40': (7.0e6, 7.3e6, "40m Amateur Band"),
+    'HAM30': (10.1e6, 10.15e6, "30m Amateur Band"),
+    'HAM20': (14.0e6, 14.35e6, "20m Amateur Band"),
+    'HAM17': (18.068e6, 18.168e6, "17m Amateur Band"),
+    'HAM15': (21.0e6, 21.45e6, "15m Amateur Band"),
+    'HAM12': (24.89e6, 24.99e6, "12m Amateur Band"),
+    'HAM10': (28.0e6, 29.7e6, "10m Amateur Band"),
+    'HAM6': (50.0e6, 54.0e6, "6m Amateur Band"),
+    'HAM2': (144.0e6, 148.0e6, "2m Amateur Band"),
+    'HAM70CM': (420.0e6, 450.0e6, "70cm Amateur Band"),
+    
+    # CB Radio
+    'CB': (26.965e6, 27.405e6, "Citizens Band Radio"),
+    
+    # Marine Bands
+    'MARINE': (156.0e6, 162.025e6, "Marine VHF"),
+    'MARINE_MF': (1.605e6, 4.0e6, "Marine MF Band"),
+    
+    # Aviation
+    'AIR_VOICE': (118.0e6, 137.0e6, "Aircraft Voice Comms"),
+    'AIR_NAV': (108.0e6, 117.975e6, "Aircraft Navigation"),
+    
+    # Emergency Services
+    'NOAA': (162.4e6, 162.55e6, "NOAA Weather Radio"),
+    'PUBLIC': (152.0e6, 162.0e6, "Public Safety VHF"),
+    'PUBLIC_UHF': (450.0e6, 470.0e6, "Public Safety UHF"),
+    
+    # Broadcast
+    'AM': (535e3, 1.705e6, "AM Broadcast"),
+    'FM': (87.5e6, 108.0e6, "FM Broadcast"),
+    'SW1': (2.3e6, 2.495e6, "Shortwave Band 1"),
+    'SW2': (3.2e6, 3.4e6, "Shortwave Band 2"),
+    'SW3': (4.75e6, 4.995e6, "Shortwave Band 3"),
+    'SW4': (5.9e6, 6.2e6, "Shortwave Band 4"),
+    'SW5': (7.3e6, 7.35e6, "Shortwave Band 5"),
+    'SW6': (9.4e6, 9.9e6, "Shortwave Band 6"),
+    'SW7': (11.6e6, 12.1e6, "Shortwave Band 7"),
+    'SW8': (13.57e6, 13.87e6, "Shortwave Band 8"),
+    'SW9': (15.1e6, 15.8e6, "Shortwave Band 9"),
+    'SW10': (17.48e6, 17.9e6, "Shortwave Band 10"),
+    'SW11': (21.45e6, 21.85e6, "Shortwave Band 11"),
+    'SW12': (25.67e6, 26.1e6, "Shortwave Band 12"),
+    
+    # Digital Modes Common Frequencies
+    'FT8_40': (7.074e6, 7.076e6, "40m FT8"),
+    'FT8_20': (14.074e6, 14.076e6, "20m FT8"),
+    'PSK31_40': (7.070e6, 7.071e6, "40m PSK31"),
+    'PSK31_20': (14.070e6, 14.071e6, "20m PSK31"),
+    'RTTY_40': (7.080e6, 7.125e6, "40m RTTY"),
+    'RTTY_20': (14.080e6, 14.099e6, "20m RTTY"),
+    
+    # CW (Morse) Common Frequencies
+    'CW_80': (3.5e6, 3.6e6, "80m CW"),
+    'CW_40': (7.0e6, 7.125e6, "40m CW"),
+    'CW_30': (10.1e6, 10.13e6, "30m CW"),
+    'CW_20': (14.0e6, 14.15e6, "20m CW"),
+    
+    # Satellite
+    'SAT_VHF': (145.8e6, 146.0e6, "Amateur Satellite VHF"),
+    'SAT_UHF': (435.0e6, 438.0e6, "Amateur Satellite UHF"),
+    'NOAA_SAT': (137.0e6, 138.0e6, "NOAA Weather Satellites"),
+    
+    # Time Signals
+    'WWV': (2.5e6, 20.0e6, "WWV Time Signals"),
+    'WWVH': (2.5e6, 15.0e6, "WWVH Time Signals"),
 }
 
-# Optional: Add specific bandwidth recommendations for certain bands
+# Add recommended bandwidths for different modes
 BAND_BANDWIDTHS = {
-    'FM': 200e3,      # FM broadcast channels are ~200kHz wide
-    'NOAA': 40e3,     # NOAA APT signals are ~40kHz wide
-    'ISM433': 100e3,  # Common bandwidth for 433MHz devices
-    'ADS-B': 2e6,     # ADS-B requires wider bandwidth
-    'GPS': 2e6,       # GPS signals need wider bandwidth
-    'WIFI': 20e6      # WiFi channels are typically 20MHz wide
+    'AM': 10e3,
+    'FM': 200e3,
+    'HAM160': 2.7e3,
+    'HAM80': 2.7e3,
+    'HAM40': 2.7e3,
+    'HAM20': 2.7e3,
+    'CB': 10e3,
+    'MARINE': 16e3,
+    'AIR_VOICE': 8.33e3,
+    'NOAA': 25e3,
+    'FT8_40': 3e3,
+    'FT8_20': 3e3,
+    'PSK31_40': 500,
+    'PSK31_20': 500,
+    'RTTY_40': 3e3,
+    'RTTY_20': 3e3,
+    'CW_80': 500,
+    'CW_40': 500,
+    'CW_30': 500,
+    'CW_20': 500,
+    'SAT_VHF': 50e3,
+    'SAT_UHF': 50e3,
+    'NOAA_SAT': 40e3,
 }
 
 # Add these constants near the top with other constants
@@ -251,6 +317,9 @@ DEFAULT_PPM = 0  # Default PPM correction value
 
 # Add near the top with other global variables
 LAST_SCAN_RESULTS = []  # Store the last scan results
+
+# Variable to save the RTL command
+RTL_COMMAND = ""
 
 def init_colors():
     curses.start_color()
@@ -1467,6 +1536,28 @@ def draw_frequency_labels(stdscr, center_freq, bandwidth, display_height, displa
             except curses.error:
                 pass
 
+        # Add band name indicator if frequency is in a known band
+        current_band = None
+        # Add small tolerance for floating point comparison (1 kHz)
+        tolerance = 1e3
+        for band, (start, end, description) in BAND_PRESETS.items():
+            if (start - tolerance) <= center_freq <= (end + tolerance):
+                current_band = band
+                break
+        
+        if current_band:
+            try:
+                band_text = f"[{current_band}]"
+                # Position the band name at the start of the axis
+                stdscr.addstr(display_height + 2, x_offset - len(band_text) - 1, 
+                            band_text, curses.color_pair(4) | curses.A_BOLD)
+                
+                # Debug output (optional)
+                debug_text = f"F:{center_freq/1e6:.3f}MHz B:{start/1e6:.3f}-{end/1e6:.3f}MHz"
+                stdscr.addstr(0, 0, debug_text, curses.color_pair(2))
+            except curses.error:
+                pass
+
     except curses.error:
         pass
 
@@ -1952,6 +2043,119 @@ class SDRDevice:
                 time.sleep(1)
         return False
 
+def show_rtl_commands(stdscr, sdr):
+    """Display RTL commands from JSON file with pagination"""
+    try:
+        # Try to load the JSON file
+        with open('rtlcoms.json', 'r') as f:
+            commands = json.load(f)
+    except (FileNotFoundError, json.JSONDecodeError):
+        show_popup_msg(stdscr, "rtlcoms.json not found or invalid!", error=True)
+        return
+
+    max_height, max_width = stdscr.getmaxyx()
+    available_height = max_height - 6  # Reserve space for header and footer
+    
+    # Calculate total entries and pages, accounting for 2 lines per entry
+    entries_per_page = available_height // 2  # Divide by 2 since each entry takes 2 lines
+    total_entries = len(commands)
+    total_pages = (total_entries + entries_per_page - 1) // entries_per_page
+    current_page = 0
+    
+    while True:
+        stdscr.clear()
+        
+        # Draw header
+        header = "Available RTL Commands"
+        stdscr.addstr(0, 2, header, curses.color_pair(1) | curses.A_BOLD)
+        stdscr.addstr(1, 2, "-" * len(header), curses.color_pair(2))
+        
+        # Calculate slice for current page
+        start_idx = current_page * entries_per_page
+        end_idx = min(start_idx + entries_per_page, total_entries)
+        
+        # Display current page of commands
+        current_items = list(commands.items())[start_idx:end_idx]
+        for i, (name, command) in enumerate(current_items, 1):
+            # Calculate absolute index for selection
+            abs_index = start_idx + i
+            
+            # Format the command with actual values
+            try:
+                formatted_command = command.format(
+                    freq=f"{sdr.center_freq/1e6:.3f}",
+                    sample_rate=f"{sdr.sample_rate/1e6:.3f}",
+                    gain=sdr.gain if isinstance(sdr.gain, str) else f"{sdr.gain:.1f}",
+                    ppm=sdr.ppm
+                )
+            except Exception:
+                formatted_command = command  # Use raw command if formatting fails
+            
+            # Calculate display position
+            display_line = (i - 1) * 2 + 3  # Start at line 3, increment by 2 for each entry
+            
+            try:
+                # Display name in bold white
+                name_line = f"{abs_index:2d}. {name}"
+                stdscr.addstr(display_line, 2, name_line, curses.color_pair(1) | curses.A_BOLD)
+                
+                # Display command in cyan on next line
+                cmd_line = f"    {formatted_command}"
+                stdscr.addstr(display_line + 1, 2, cmd_line, curses.color_pair(5))
+            except curses.error:
+                pass
+        
+        # Draw footer with navigation help
+        footer = f"Page {current_page + 1}/{total_pages} | [n]ext/[p]rev page | [q]uit | Enter number to select"
+        try:
+            stdscr.addstr(max_height-2, 2, footer, curses.color_pair(5))
+            stdscr.addstr(max_height-1, 2, "Choice: ", curses.color_pair(1) | curses.A_BOLD)
+        except curses.error:
+            pass
+        
+        # Handle input
+        curses.echo()
+        curses.curs_set(1)
+        stdscr.nodelay(False)
+        
+        try:
+            choice = stdscr.getstr().decode('utf-8').lower()
+            
+            if choice == 'q':
+                break
+            elif choice == 'n' and current_page < total_pages - 1:
+                current_page += 1
+                continue
+            elif choice == 'p' and current_page > 0:
+                current_page -= 1
+                continue
+            
+            try:
+                choice_num = int(choice)
+                if 1 <= choice_num <= total_entries:
+                    # Get selected command
+                    command = list(commands.values())[choice_num - 1]
+                    # Format command with current values
+                    formatted_command = command.format(
+                        freq=f"{sdr.center_freq/1e6:.3f}",
+                        sample_rate=f"{sdr.sample_rate/1e6:.3f}",
+                        gain=sdr.gain if isinstance(sdr.gain, str) else f"{sdr.gain:.1f}",
+                        ppm=sdr.ppm
+                    )
+                    # Store command for display at exit
+                    global RTL_COMMAND
+                    RTL_COMMAND = formatted_command
+                    return
+            except ValueError:
+                pass
+                
+        except curses.error:
+            pass
+        finally:
+            stdscr.nodelay(True)
+            curses.noecho()
+            curses.curs_set(0)
+
 def init_audio_device():
     """Initialize audio device with error handling and backend selection"""
     try:
@@ -2401,6 +2605,8 @@ def main(stdscr):
                     current_mode_index = DISPLAY_MODES.index(current_display_mode)
                     current_display_mode = DISPLAY_MODES[(current_mode_index + 1) % len(DISPLAY_MODES)]
                     stdscr.clear()
+                elif key == ord('/'):  # RTL Commands
+                    show_rtl_commands(stdscr, sdr)  # Pass sdr here
                 elif key == ord('1'):  # Spectrum Mode switch
                     current_mode_index = 0
                     current_display_mode = DISPLAY_MODES[0]
@@ -2505,6 +2711,7 @@ def main(stdscr):
         if wav_file:
             stop_audio_recording(wav_file)
 
+
 def compute_fft(samples):
     """Compute normalized FFT with proper scaling"""
     # Apply window function to reduce spectral leakage
@@ -2528,3 +2735,5 @@ def compute_fft(samples):
 
 if __name__ == "__main__":
     curses.wrapper(main)
+    if RTL_COMMAND:
+            print(RTL_COMMAND)
