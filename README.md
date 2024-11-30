@@ -97,8 +97,30 @@ License: GPL-3.0-or-later
 * Fixed Initialization process for LimeSDR
 * Revert spectrogram drawing to first release
 
+### Version 1.0.3 (2024/11/30)
+
+#### Features Added:
+* The program now displays the Band name if the center frequency is inside a known one
+* The '/' key opens the RTLSDR Commands menu (read below)
+* Added an utility to convert CSV/GQRX bookmark files to JSON/PySpecSDR format
+
+#### Bug Fixes:
+* Fixed AGC string in header
+* Fixed bugs in user inputs
+
+#### Features Removed:
+* RTLSDR version removed. SoapySDR is more capable and supports more devices.
+
 ## ToDo:
 * Fix bugs
+* Implement more ideas i have ;)
+
+## RTLSDR Commands Menu
+Pressing the '/' key, will show a menu with various RTLSDR commands. These are examples of what you can do with the RTLSDR suite of programs like rtl_433, rtl_power etc. Selecting one, from the menu, will store it in memory, passing the current frequency as a paramater to that command. When you exit the program, this command will be printed on the terminal.
+
+It's a simple way, to have ready to use RTLSDR commands and use the current frequency. Select one and exit, at the current frequency, to immediately, do something else (like decoding messages).
+
+The command is not executed, it's just printed on the terminal. Copy/Paste it to use it.
 
 ## Showcase
 ![spectrum-vis](https://cp737.net/files/pyspecsdr/spectrum.png)

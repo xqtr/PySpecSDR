@@ -1,0 +1,18 @@
+{
+    "Listen FM Radio":"rtl_fm -f {freq}M -M wbfm -s 200k -r 48k | play -r 48k -t raw -e signed-integer -b 16 -c 1 -V1 -",
+    "Listen AM":"rtl_fm -f {freq}M -M am -s 12k -r 12k | play -r 12k -t raw -e s -b 16 -c 1 -",
+    "Listen CB Radio":"rtl_fm -f {freq}M -M am -s 12k -r 12k | play -r 12k -t raw -e s -b 16 -c 1 -",
+    "Capture NOAA in .wav":"rtl_fm -f 137.62M -M fm -s 60k -g 50 -p 0 -E deemp | sox -t raw -r 60k -e signed -b 16 -c 1 -V1 - NOAA.wav && wxtoimg NOAA.wav NOAA.png",
+    "Decode Aircraft Transmissions":"dump1090 --net --interactive",
+    "Decode APRS (def:144.8M)":"rtl_fm -f {freq}M -M fm -s 22050 -r 22050 | direwolf -c direwolf.conf -r 22050 -",
+    "Decode smart devices (def:433.92M)":"rtl_433 -f {freq}M",
+    "Decode Pager (def:153.2M)":"rtl_fm -f {freq}M -M fm -s 22050 -r 22050 | multimon-ng -t raw -a POCSAG1200 -",
+    "Decode GSM signals":"grgsm_livemon -f {freq}M",
+    "Decode NOAA HRIT/EMWIN Satellite Signals (Def. 1694.1M)":"rtl_fm -f {freq}M -M usb -s 700k -g 50 | goestools",
+    "Decode MORSE code":"rtl_fm -f {freq}M -M am -s 12k -r 12k | multimon-ng -a CW -t raw -",
+    "Decode Digital Voice (DMR, D-Star, etc.)":"rtl_fm -f {freq}M -M fm -s 48k -r 48k | dsd -i /dev/stdin -o /dev/stdout",
+    "Stream to ICECAST server":"rtl_fm -f {freq}M -M wbfm -s 200k -r 48k | ffmpeg -re -i pipe:0 -acodec libmp3lame -f mp3 icecast://source:password@yourserver:8000/mount",
+    "Receive AIS (Marine Automatic Identification System)":"rtl_fm -f {freq}M -M fm -s 48k -r 48k | aisdecoder -h -d /dev/stdin",
+    "Monitor Trunked Radio Systems (P25, DMR, etc. Def.851.0125)":"rtl_fm -f {freq}M -M fm -s 48k -g 40 | multimon-ng -a P25 -t raw -",
+    "Monitor Pager traffic (Def. 138M)":"rtl_fm -f {freq}M -M fm -s 22050 -r 22050 | multimon-ng -a FLEX -t raw -"
+}

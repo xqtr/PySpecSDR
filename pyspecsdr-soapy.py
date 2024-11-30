@@ -55,8 +55,8 @@ SOFTWARE.
 Author: XQTR
 Email: xqtr@gmx.com // xqtr.xqtr@gmail.com
 GitHub: https://github.com/xqtr/PySpecSDR
-Version: 1.0.0
-Last Updated: 2024/11/18
+Version: 1.0.3
+Last Updated: 2024/11/30
 
 Usage:
     python3 pyspecsdr.py
@@ -777,13 +777,13 @@ def load_bookmarks():
     except (FileNotFoundError, json.JSONDecodeError):
         return {}
 
-def save_bookmark(name, freq):
+def save_bookmark(name, freq,bandwidth):
     bookmarks = load_bookmarks()
-    bookmarks[name] = freq
+    bookmarks[name] = [freq, CURRENT_DEMOD, bandwidth]
     with open(BOOKMARK_FILE, 'w') as f:
         json.dump(bookmarks, f, indent=2)
 
-def add_bookmark(stdscr, freq):
+def add_bookmark(stdscr, freq,bandwidth):
     max_height, max_width = stdscr.getmaxyx()
     draw_clearheader(stdscr)
     stdscr.addstr(0, 0, "Enter bookmark name: ", curses.color_pair(1) | curses.A_BOLD)
@@ -796,7 +796,7 @@ def add_bookmark(stdscr, freq):
     curses.curs_set(0)
     stdscr.nodelay(True)
     if name:
-        save_bookmark(name, freq)
+        save_bookmark(name, freq, bandwidth)
 
 def show_bookmarks(stdscr):
     """Display bookmarks with pagination and deletion capability"""
@@ -826,16 +826,19 @@ def show_bookmarks(stdscr):
         current_items = list(bookmarks.items())[start_idx:end_idx]
         
         # Display bookmarks for current page
-        for i, (name, freq) in enumerate(current_items, 1):
+        for i, (name, details) in enumerate(current_items, 1):
+            freq = details[0]
+            mode = details[1]
+            band = details[2]
             abs_index = start_idx + i
-            line = f"{abs_index:2d}. {name:<20}: {freq/1e6:.3f} MHz"
+            line = f"{abs_index:2d}. {name:<20}: {freq/1e6:.3f} MHz {mode:<3} {band:>9}Hz"
             try:
                 stdscr.addstr(i + 2, 2, line, curses.color_pair(2))
             except curses.error:
                 pass
         
         # Draw footer with navigation help
-        footer = f"Page {current_page + 1}/{total_pages} | [n]ext/[p]rev page | [d]elete | [q]uit | Enter number to select"
+        footer = f"Page {current_page + 1}/{total_pages} | [n]ext/[p]rev page | [d]elete | [q]uit"
         try:
             stdscr.addstr(max_height-2, 2, footer, curses.color_pair(5))
             stdscr.addstr(max_height-1, 2, "Choice: ", curses.color_pair(1) | curses.A_BOLD)
@@ -2452,11 +2455,14 @@ def main(stdscr):
                         sdr.set_gain(sdr.valid_gains_db[gainindex])
                     draw_clearheader(stdscr)
                 elif key == ord('k'):  # Save bookmark
-                    add_bookmark(stdscr, sdr.center_freq)
+                    add_bookmark(stdscr, sdr.center_freq, bandwidth)
                 elif key == ord('l'):  # Load bookmark
-                    new_freq = show_bookmarks(stdscr)
-                    if new_freq is not None:
+                    bkm = show_bookmarks(stdscr)
+                    if bkm is not None:
+                        new_freq = bkm[0]
                         sdr.set_center_freq(new_freq)
+                        bandwidth = bkm[2]
+                        CURRENT_DEMOD = bkm[1]
                 elif key == ord('R'):  # Start/Stop recording
                     draw_clearheader(stdscr)
                     if not audio_recording and AUDIO_AVAILABLE and audio_enabled:
