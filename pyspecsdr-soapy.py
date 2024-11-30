@@ -345,6 +345,7 @@ def showhelp(stdscr):
             ("w", "Save current settings"),
             ("m", "Cycle through display modes"),
             ("1-6", "Quick switch display modes"),
+            ("/", "RTL Commands Selector"),
         ]),
         ("Frequency Controls", [
             ("F/f", "Change frequency up/down by step"),
@@ -497,7 +498,21 @@ def setfreq(stdscr):
     curses.noecho()
     curses.curs_set(0)
     stdscr.nodelay(True)
-    return freq.decode('utf-8')  # Convert bytes to string
+    
+    res = freq.decode('utf-8') # Convert bytes to string
+    if len(res)<3: return None
+    if res[-1] in 'mM' or res[-1] in 'kK':
+        num = res[:-1]
+        try:
+            int(num)
+        except:
+            return None
+    else:
+        try:
+            int(freq)
+        except:
+            return None
+    return res 
 
 
 def draw_clearheader(stdscr):
@@ -526,6 +541,7 @@ def draw_header(stdscr, freq_data, frequencies, center_freq, bandwidth, gain, st
     samples_text = f"amples: {2**SAMPLES}"
     step_text = f"ep: {step/1e6:.3f} MHz"
     ppm_text = f"PM: {sdr.ppm}"  # Add PPM text
+    agc_text = f"GC: {'On' if AGC_ENABLED else 'Off'}"
     
     x_pos = 0
     stdscr.addstr(0, x_pos, "F", curses.color_pair(1) | curses.A_BOLD)
@@ -549,9 +565,9 @@ def draw_header(stdscr, freq_data, frequencies, center_freq, bandwidth, gain, st
         stdscr.addstr(1, x_pos+1, ppm_text, curses.color_pair(2))
     except curses.error:
         pass  # Ignore if screen is too small
-    #x_pos += len(ppm_text) + 3
-    #stdscr.addstr(1, x_pos, "H", curses.color_pair(1) | curses.A_BOLD)
-    #stdscr.addstr(1, x_pos+1, "elp", curses.color_pair(2))
+    x_pos += len(ppm_text) + 4
+    stdscr.addstr(1, x_pos, "A", curses.color_pair(1) | curses.A_BOLD)
+    stdscr.addstr(1, x_pos+1, agc_text, curses.color_pair(2))
     
     # Add signal strength indicator
     peak_power = np.max(freq_data)
@@ -559,11 +575,6 @@ def draw_header(stdscr, freq_data, frequencies, center_freq, bandwidth, gain, st
     strength_text = f"Peak: {peak_power:.1f} dB Avg: {avg_power:.1f} dB"
     stdscr.addstr(1, max_width - len(strength_text) - 1, strength_text, curses.color_pair(2))
 
-    # Add AGC status to header
-    agc_text = "AGC: ON" if AGC_ENABLED else "AGC: OFF"
-    stdscr.addstr(1, max_width - len(agc_text) - len(strength_text) - 3, 
-                 agc_text, 
-                 curses.color_pair(4) if AGC_ENABLED else curses.color_pair(2))
 
 def draw_spectrogram(stdscr, freq_data, frequencies, center_freq, bandwidth, gain, step, 
                     sdr, is_recording=False, recording_duration=None):
@@ -1553,8 +1564,8 @@ def draw_frequency_labels(stdscr, center_freq, bandwidth, display_height, displa
                             band_text, curses.color_pair(4) | curses.A_BOLD)
                 
                 # Debug output (optional)
-                debug_text = f"F:{center_freq/1e6:.3f}MHz B:{start/1e6:.3f}-{end/1e6:.3f}MHz"
-                stdscr.addstr(0, 0, debug_text, curses.color_pair(2))
+                #debug_text = f"F:{center_freq/1e6:.3f}MHz B:{start/1e6:.3f}-{end/1e6:.3f}MHz"
+                #stdscr.addstr(0, 0, debug_text, curses.color_pair(2))
             except curses.error:
                 pass
 
@@ -2386,11 +2397,12 @@ def main(stdscr):
                     sdr.set_center_freq(max(0, sdr.center_freq - 0.5e6))
                 elif key == ord('x'):  # Set Frequency
                     freq = setfreq(stdscr)
-                    if freq[-1] in 'mM  ':
-                        freq = float(freq[:-1]) * 1e6
-                    elif freq[-1] in 'kK':
-                        freq = float(freq[:-1]) * 1e3
-                    sdr.set_center_freq(int(freq))
+                    if freq:
+                        if freq[-1] in 'mM  ':
+                            freq = float(freq[:-1]) * 1e6
+                        elif freq[-1] in 'kK':
+                            freq = float(freq[:-1]) * 1e3
+                        sdr.set_center_freq(int(freq))
                 elif key == ord('t'):  # Decrease step
                     freq_step = max(0.01e6, freq_step - 0.01e6)
                     draw_clearheader(stdscr)
