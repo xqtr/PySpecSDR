@@ -123,7 +123,7 @@ It's a simple way, to have ready to use RTLSDR commands and use the current freq
 The command is not executed, it's just printed on the terminal. Copy/Paste it to use it.
 
 ## Showcase
-![spectrum-vis](https://cp737.net/files/pyspecsdr/spectrum.png)
+![spectrum-vis](https://cp737.net/files/pyspecsdr/1spectrum.png)
 
 ![band-presets](https://cp737.net/files/pyspecsdr/bands.png)
 
@@ -157,11 +157,12 @@ Scanning...
 
 Results. Select to listen.
 
-![surface](https://cp737.net/files/pyspecsdr/surface.png)
-![vector](https://cp737.net/files/pyspecsdr/vector.png)
+![surface](https://cp737.net/files/pyspecsdr/1surface.png)
+![vector](https://cp737.net/files/pyspecsdr/1vector.png)
 
 ASCII Waterfall
-![waterfall](https://cp737.net/files/pyspecsdr/waterfall.png)
+
+![waterfall](https://cp737.net/files/pyspecsdr/1waterfall.png)
 
 RTLSDR Commands
 ![commands](https://cp737.net/files/pyspecsdr/rtlcmd.png)
