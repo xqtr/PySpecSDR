@@ -157,10 +157,14 @@ Scanning...
 
 Results. Select to listen.
 
-![surface-vis](https://cp737.net/files/pyspecsdr/surface.png)
-![vector-vis](https://cp737.net/files/pyspecsdr/vector.png)
-![waterfall-vis](https://cp737.net/files/pyspecsdr/waterfall.png)
+![surface](https://cp737.net/files/pyspecsdr/surface.png)
+![vector](https://cp737.net/files/pyspecsdr/vector.png)
+![waterfall](https://cp737.net/files/pyspecsdr/waterfall.png)
 
+RTLSDR Commands
+![commands](https://cp737.net/files/pyspecsdr/rtlcmd.png)
+
+Running flawlessly in a Hackberry Pi Q20...
 ![hackberry-vis](https://cp737.net/files/pyspecsdr/hbwfall.jpg)
 
 
