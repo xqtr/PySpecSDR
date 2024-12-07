@@ -55,8 +55,8 @@ SOFTWARE.
 Author: XQTR
 Email: xqtr@gmx.com // xqtr.xqtr@gmail.com
 GitHub: https://github.com/xqtr/PySpecSDR
-Version: 1.0.3
-Last Updated: 2024/11/30
+Version: 1.0.4
+Last Updated: 2024/12/07
 
 Usage:
     python3 pyspecsdr.py
@@ -66,19 +66,9 @@ Key Bindings:
     h - Show help menu
     For full list of controls, press 'h' while running
     
-    2024/11/18 // Initial Release
-    2024/11/22 // Ver 1.0.1
-      + Added PPM function
-      ! Fixed: All characters are lower ASCII
-      + Added more band presets
-      ! Fixed: All visual modes have frequency labels and the same look
-      + Added scrolling capability in the Help screen 
-      + Added pagination to scan results
-      + Pressing the C key, the last scan results will re-appear
-      + Added pagination to Bookmarks page
-      + Added the ability to delete a bookmark. To edit one, just re-insert
-        a bookmark with the same description
-      ! Fixed/Improved signal detection (hopefully)   
+Changelog:
+
+    Read the CHANGELOG.md file
       
     
 '''
@@ -90,6 +80,7 @@ from scipy.signal import decimate
 import sounddevice as sd
 from scipy.signal import butter, lfilter
 from scipy.signal import firwin
+from scipy.signal import bilinear
 from scipy.signal import hilbert
 from scipy.signal import welch
 #import queue
@@ -104,12 +95,17 @@ import wave
 import struct
 import SoapySDR
 from SoapySDR import SOAPY_SDR_RX, SOAPY_SDR_CF32
+import signal
+
 
 audio_buffer = deque(maxlen=24)  # Increased from 16 for better continuity
 SAMPLES = 7
 INTENSITY_CHARS = ' .,:|\\'  # Simple ASCII characters for intensity levels
 BOOKMARK_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "sdr_bookmarks.json")
 SETTINGS_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "sdr_settings.ini")
+PIPE_PATH = "/tmp/sdrpipe"
+PIPE_FILE = None
+USE_PIPE = False
 
 # Add global flag for audio availability
 AUDIO_AVAILABLE = False
@@ -368,6 +364,7 @@ def showhelp(stdscr):
             ("a", "Toggle audio on/off"),
             ("d", "Change demodulation mode"),
             ("R", "Start/Stop audio recording"),
+            ("I", "Start/Stop named PIPE at /tmp/sdrpipe"),
         ]),
         ("Frequency Management", [
             ("k/l", "Save/Load frequency bookmark"),
@@ -484,6 +481,56 @@ def showhelp(stdscr):
     
     # Restore original nodelay state
     stdscr.nodelay(True)
+    
+# Pipe Functions
+def create_pipe():
+    global PIPE_PATH
+    """Create a named pipe for output."""
+    try:
+        os.mkfifo(PIPE_PATH)
+    except FileExistsError:
+        pass  # Pipe already exists
+
+def open_file_pipe():
+    #Open file and return value
+    #fifo = open(PIPE_PATH, 'wb', buffering=0)
+    fifo = open(PIPE_PATH, 'wb', os.O_NONBLOCK)
+    return fifo
+
+def write_to_pipe(fifof,data,stdscr):
+    """Write audio data to the named pipe."""
+    if data.dtype != np.int16:
+        data = np.int16(data * 32767) 
+    fifof.write(data)
+
+def close_file_pipe(fifo):
+    fifo.close    
+
+def clean_pipe(signum, frame):
+    """Cleanup function to remove the named pipe."""
+    if os.path.exists(PIPE_PATH):
+        #os.remove(PIPE_PATH)
+        os.unlink(PIPE_PATH)
+                
+def start_pipe_recording(stdscr):
+    global PIPE_FILE, PIPE_PATH,USE_PIPE
+    create_pipe()
+    PIPE_FILE = open_file_pipe()
+    USE_PIPE = True
+    stdscr.addstr(0, 0, f"Started recording to {PIPE_PATH}", curses.color_pair(4))
+    time.sleep(1)
+    
+def stop_pipe_recording(stdscr):
+    global PIPE_FILE, PIPE_PATH,USE_PIPE
+    USE_PIPE = False
+    close_file_pipe(PIPE_FILE)
+    clean_pipe(None,None)
+    PIPE_FILE = None
+    stdscr.addstr(0, 0, "Recording stopped", curses.color_pair(4))
+    time.sleep(1)
+        
+signal.signal(signal.SIGINT, clean_pipe)
+signal.signal(signal.SIGTERM, clean_pipe)  # Handle termination signal
 
 def setfreq(stdscr):
     draw_clearheader(stdscr)
@@ -574,6 +621,10 @@ def draw_header(stdscr, freq_data, frequencies, center_freq, bandwidth, gain, st
     avg_power = np.mean(freq_data)
     strength_text = f"Peak: {peak_power:.1f} dB Avg: {avg_power:.1f} dB"
     stdscr.addstr(1, max_width - len(strength_text) - 1, strength_text, curses.color_pair(2))
+    
+    #debug string
+    #txt = str(sdr.sample_rate)
+    #stdscr.addstr(0, max_width - len(txt) - 1, txt, curses.color_pair(2) | curses.A_BOLD)
 
 
 def draw_spectrogram(stdscr, freq_data, frequencies, center_freq, bandwidth, gain, step, 
@@ -644,6 +695,7 @@ def draw_spectrogram(stdscr, freq_data, frequencies, center_freq, bandwidth, gai
                     pass
             
             # Then draw the bar with varied characters based on signal strength
+            peak_height = 0
             for y in range(display_height - height, display_height):
                 try:
                     # Calculate relative position in the bar
@@ -657,19 +709,92 @@ def draw_spectrogram(stdscr, freq_data, frequencies, center_freq, bandwidth, gai
                     elif value > 0.2:  # Weak signals
                         char = "-" if rel_pos > 0.5 else "."
                     else:  # Noise level
-                        char = "." if rel_pos > 0.7 else " "
+                        if rel_pos > 0.7:
+                            char = "."
+                        else:
+                            char = " "
                     
                     stdscr.addstr(y + 2, x + 9, char, curses.color_pair(1))
+                        
                 except curses.error:
                     pass
-
+                
     # Use standardized frequency labels
     draw_frequency_labels(stdscr, center_freq, bandwidth, display_height, display_width)
+    
+# Run this function before using the rtl-sdr samples to remove dc offset and correct iq
+def iq_correction(samples: np.ndarray) -> np.ndarray:
+    # Remove DC and calculate input power
+    centered_samples = samples - np.mean(samples)
+    input_power = np.var(centered_samples)
+
+    # Calculate scaling factor for Q
+    q_amplitude = np.sqrt(2 * np.mean(samples.imag ** 2))
+
+    # Normalize Q component
+    normalized_samples = samples / q_amplitude
+
+    i_samples, q_samples = normalized_samples.real, normalized_samples.imag
+
+    # Estimate alpha and sin_phi
+    alpha_est = np.sqrt(2 * np.mean(i_samples ** 2))
+    sin_phi_est = (2 / alpha_est) * np.mean(i_samples * q_samples)
+
+    # Estimate cos_phi
+    cos_phi_est = np.sqrt(1 - sin_phi_est ** 2)
+
+    # Apply phase and amplitude correction
+    i_new = (1 / alpha_est) * i_samples
+    q_new = (-sin_phi_est / alpha_est) * i_samples + q_samples
+
+    # Corrected signal
+    corrected_samples = (i_new + 1j * q_new) / cos_phi_est
+
+    # Calculate and print phase and amplitude errors
+    phase_error_deg = np.round(np.abs(np.arccos(cos_phi_est) * 180 / np.pi), 4)
+    amplitude_error_db = np.round(np.abs(20 * np.log10(alpha_est)), 4)
+    
+    # Print phase and amplitude errors
+    #print(f"Phase Error: {phase_error_deg}")
+    #print(f"Amplitude Error: {amplitude_error_db}")
+
+    return corrected_samples * np.sqrt(input_power / np.var(corrected_samples))
+
+def decode_mono(samples: np.ndarray, fs: int):
+    """Decode FM modulation to mono audio."""
+    demod_gain = fs / (2 * np.pi * np.pi * 75e3)  # 75e3 is the frequency deviation
+
+    # FM Demodulation
+    demod = demod_gain * np.angle(samples[:-1] * samples.conj()[1:])
+
+    # Sample rate after decimation will be 41666.67
+    decimation = 6
+
+    # Decimate to get mono audio
+    #mono = signal.decimate(demod, decimation, ftype="fir")
+    mono = decimate(demod, decimation, ftype="fir")
+
+    # De-emphasis is 75e-6 for North America, 50e-6 for everywhere else
+    deemphasis = 75e-6
+
+    # Create filter coefficients for de-emphasis
+    bz, az = bilinear([1], [deemphasis, 1], fs=fs)
+
+    # Apply the de-emphasis filter
+    mono = lfilter(bz, az, mono)
+    mono -= mono.mean()
+
+    mono *= 0.75  # Volume factor
+    mono *= 32768
+    mono = mono.astype(np.int16)
+
+    return mono
 
 def demodulate_signal(samples, sample_rate, mode='FM'):
     """Advanced demodulation function supporting multiple modes"""
     if mode == 'FM':
-        return demodulate_fm(samples, sample_rate)
+        
+        return demodulate_fm(iq_correction(samples), sample_rate)
     elif mode == 'WFM':
         return demodulate_wfm(samples, sample_rate)
     elif mode == 'AM':
@@ -703,27 +828,37 @@ def demodulate_fm(samples, sample_rate, target_rate=44100):
     # Basic normalization
     audio = audio / np.max(np.abs(audio)) * 0.95
     return audio
-
+    
 def demodulate_wfm(samples, sample_rate, target_rate=44100):
-    """Wide FM demodulation optimized for broadcast FM"""
-    # Pre-emphasis correction filter
-    emphasis = firwin(65, 2.125e3/sample_rate, window='hamming')
-    samples = lfilter(emphasis, 1.0, samples)
-    
-    # FM demodulation with wider deviation
+    """Wide FM demodulation optimized for broadcast FM."""
+    # Step 1: Pre-emphasis filter (high-pass)
+    pre_emphasis_filter = firwin(65, 2.125e3 / sample_rate, pass_zero=False, window="hamming")
+    samples = lfilter(pre_emphasis_filter, 1.0, samples)
+
+    # Step 2: FM demodulation
     demod = np.angle(samples[1:] * np.conj(samples[:-1]))
-    demod = demod * (sample_rate / (2 * np.pi))
+    demod = demod * (sample_rate / (2 * np.pi))  # Convert from radians to Hz deviation
     
-    # De-emphasis filter (75µs time constant)
-    deemph_tc = 75e-6
-    deemph = np.exp(-1/(deemph_tc * sample_rate))
-    demod = lfilter([1-deemph], [1, -deemph], demod)
-    
-    # Decimate to target rate
+    # Step 3: De-emphasis filter (for 75 µs time constant)
+    deemph_tc = 75e-6  # 75 µs (FM standard)
+    alpha = np.exp(-1 / (deemph_tc * sample_rate))
+    b = [1 - alpha]
+    a = [1, -alpha]
+    demod = lfilter(b, a, demod)
+
+    # Step 4: Decimation to target sample rate
     decimation_factor = int(sample_rate / target_rate)
-    audio = decimate(demod, decimation_factor)
-    
-    return audio / np.max(np.abs(audio)) * 0.95
+    if decimation_factor > 1:
+        demod = decimate(demod, decimation_factor, zero_phase=True)
+
+    # Step 6: Noise reduction (optional post-processing)
+    noise_floor = 0.01  # Threshold for noise reduction
+    demod = np.where(np.abs(demod) > noise_floor, demod, 0)
+
+    # Step 7: Normalize the audio
+    audio = demod / np.max(np.abs(demod)) * 0.95
+
+    return audio
 
 def demodulate_am(samples):
     """AM demodulation using envelope detection"""
@@ -756,8 +891,19 @@ def demodulate_ssb(samples, sample_rate, lower=True):
     # Normalize
     return demod / np.max(np.abs(demod)) * 0.95
 
+def butter_lowpass(cutoff, fs, order=5):
+    nyq = 0.5 * fs
+    normal_cutoff = cutoff / nyq
+    b, a = butter(order, normal_cutoff, btype='low', analog=False)
+    return b, a
+
+def lowpass_filter(data, cutoff=3000, fs=44100, order=5):
+    b, a = butter_lowpass(cutoff, fs, order=order)
+    y = lfilter(b, a, data)
+    return y
+        
 def audio_callback(outdata, frames, time, status):
-    """Simplified audio callback"""
+    """Simplified audio callback that writes to a pipe if enabled."""
     if len(audio_buffer) > 0:
         data = np.concatenate(list(audio_buffer))
         if len(data) >= frames:
@@ -1026,14 +1172,14 @@ def adjust_gain(sdr, current_power, gainindex):
             
     return gainindex
 
-def show_popup_msg(stdscr,msg,error=False):
+def show_popup_msg(stdscr,msg,error=False,pause=2):
     draw_clearheader(stdscr)
     if error:
         stdscr.addstr(0, 0, msg, curses.color_pair(3))
     else:
         stdscr.addstr(0, 0, msg, curses.color_pair(4))
     stdscr.refresh()
-    time.sleep(2)
+    time.sleep(pause)
     draw_clearheader(stdscr)
 
 def show_band_presets(stdscr):
@@ -1808,9 +1954,7 @@ def draw_gradient_waterfall(stdscr, freq_data, frequencies, center_freq, bandwid
         # Resample data to fit display width
         resampled = np.interp(
             np.linspace(0, len(line_data) - 1, display_width),
-            np.arange(len(line_data)),
-            line_data
-        )
+            np.arange(len(line_data)), line_data)
         
         for x, value in enumerate(resampled):
             if np.isfinite(value):
@@ -2204,13 +2348,12 @@ def init_device(self):
         raise RuntimeError(f"Error initializing SDR device: {e}")
 
 def main(stdscr):
-    global SCAN_ACTIVE, AGC_ENABLED, last_agc_update, SAMPLES, WATERFALL_MODE, CURRENT_DEMOD
+    global SCAN_ACTIVE, AGC_ENABLED, last_agc_update, SAMPLES, WATERFALL_MODE, CURRENT_DEMOD,USE_PIPE,PIPE_FILE
     init_colors()
     gainindex = -1
-    
+        
     # Get initial screen dimensions
     max_height, max_width = stdscr.getmaxyx()
-    
     # Initialize display mode
     current_display_mode = 'SPECTRUM'
     
@@ -2230,7 +2373,7 @@ def main(stdscr):
     audio_recording = False
     wav_file = None
     recording_start_time = None
-
+    
     # Initialize SDR device with selected backend
     try:
         sdr = SDRDevice(stdscr=stdscr)
@@ -2307,6 +2450,11 @@ def main(stdscr):
                 if AUDIO_AVAILABLE and audio_enabled:
                     audio = demodulate_signal(samples, sdr.sample_rate, CURRENT_DEMOD)
                     audio_buffer.append(audio)
+                
+                # Update audio processing logic for PIPE    
+                if USE_PIPE:
+                    audio = demodulate_signal(samples, sdr.sample_rate, CURRENT_DEMOD)
+                    audio_buffer.append(audio)
 
                 # Calculate frequency bins
                 num_bins = 1024  # Reduced from 2048
@@ -2361,35 +2509,49 @@ def main(stdscr):
                 key = stdscr.getch()
                 if key == ord('q'):  # Quit
                     break
+                elif key == ord('I'):
+                    draw_clearheader(stdscr)
+                    #if not audio_recording and AUDIO_AVAILABLE and audio_enabled and not USE_PIPE:
+                    if not USE_PIPE:
+                        # Start recording
+                        recording_start_time = time.time()
+                        #show_popup_msg(stdscr,"Sample rate: " + str(sdr.sample_rate),pause=4)
+                        start_pipe_recording(stdscr)
+                    elif audio_recording:
+                        # Stop recording
+                        stop_pipe_recording(stdscr)
                 elif key == ord('a'):  # Toggle audio
-                    if audio_available:
-                        audio_enabled = not audio_enabled
-                        if audio_enabled and stream is None:
-                            try:
-                                stream = sd.OutputStream(
-                                    channels=1,
-                                    samplerate=44100,
-                                    callback=audio_callback,
-                                    blocksize=2048,
-                                    latency=0.1,
-                                    dtype=np.float32
-                                )
-                                stream.start()
-                            except sd.PortAudioError as e:
-                                stdscr.addstr(0, 0, f"Audio error: {str(e)}", 
-                                            curses.color_pair(3) | curses.A_BOLD)
-                                stdscr.refresh()
-                                time.sleep(2)
-                                audio_enabled = False
+                    if USE_PIPE:
+                        show_popup_msg(stdscr,"Disable PIPE export first!",error=True)
+                    else:
+                        if audio_available:
+                            audio_enabled = not audio_enabled
+                            if audio_enabled and stream is None:
+                                try:
+                                    stream = sd.OutputStream(
+                                        channels=1,
+                                        samplerate=44100,
+                                        callback=audio_callback,
+                                        blocksize=2048,
+                                        latency=0.1,
+                                        dtype=np.float32
+                                    )
+                                    stream.start()
+                                except sd.PortAudioError as e:
+                                    stdscr.addstr(0, 0, f"Audio error: {str(e)}", 
+                                                curses.color_pair(3) | curses.A_BOLD)
+                                    stdscr.refresh()
+                                    time.sleep(2)
+                                    audio_enabled = False
+                                    stream = None
+                            elif not audio_enabled and stream is not None:
+                                try:
+                                    stream.stop()
+                                    stream.close()
+                                except:
+                                    pass
                                 stream = None
-                        elif not audio_enabled and stream is not None:
-                            try:
-                                stream.stop()
-                                stream.close()
-                            except:
-                                pass
-                            stream = None
-                            audio_buffer.clear()
+                                audio_buffer.clear()
                 elif key == curses.KEY_UP:  # Increase frequency by 1 MHz
                     sdr.set_center_freq(sdr.center_freq + 1e6)
                 elif key == curses.KEY_DOWN:  # Decrease frequency by 1 MHz
@@ -2682,14 +2844,6 @@ def main(stdscr):
                         curses.noecho()
                         curses.curs_set(0)
                         stdscr.nodelay(True)
-
-                # Remove the separate recording duration display since it's now handled in draw_spectrogram
-                if audio_recording and AUDIO_AVAILABLE and audio_enabled:
-                    if len(audio_buffer) > 0:
-                        audio_data = np.concatenate(list(audio_buffer))
-                        write_audio_samples(wav_file, audio_data)
-                        audio_buffer.clear()
-
                 # Add new key handler for showing last results
                 elif key == ord('C'):  # Show last scan results
                     if LAST_SCAN_RESULTS:
@@ -2712,6 +2866,45 @@ def main(stdscr):
                         stdscr.refresh()
                         time.sleep(2)
                         draw_clearheader(stdscr)
+                
+                # Remove the separate recording duration display since it's now handled in draw_spectrogram
+                if audio_recording and AUDIO_AVAILABLE and audio_enabled:
+                    if len(audio_buffer) > 0:
+                        audio_data = np.concatenate(list(audio_buffer))
+                        write_audio_samples(wav_file, audio_data)
+                        audio_buffer.clear()
+                
+                if USE_PIPE:
+                  if len(audio_buffer) > 0:
+                        try:
+                            audio_data = np.concatenate(list(audio_buffer))
+                            write_to_pipe(PIPE_FILE,audio_data,stdscr)
+                            #write_to_pipe(PIPE_FILE,data[:frames].tobytes()) 
+                            audio_buffer.clear()
+                            
+                            stdscr.addstr(".")
+                        except BlockingIOError as e:
+                            if e.errno == errno.EAGAIN:
+                                show_popup_msg(stdscr,"No reader available. Skipping write...",error=True,pause=3)
+                            else:
+                                raise  # Unexpected error, re-raise
+                        except FileNotFoundError:
+                            show_popup_msg(stdscr,f"The pipe {PIPE_PATH} was not found.",error=True,pause=3)
+                            close_file_pipe(PIPE_FILE)
+                            USE_PIPE = False
+                            clean_pipe(None,None)
+                        except BrokenPipeError:
+                            show_popup_msg(stdscr,f"The reader has closed the pipe. Exiting.",error=True,pause=3)
+                            close_file_pipe(PIPE_FILE)
+                            USE_PIPE = False
+                            clean_pipe(None,None)
+                        except Exception as e:
+                            show_popup_msg(stdscr,f"An unexpected error occurred: {e}",error=True,pause=3)
+                            close_file_pipe(PIPE_FILE)
+                            USE_PIPE = False
+                            clean_pipe(None,None)
+
+
 
             except curses.error:
                 # Handle curses errors (like terminal resize)
@@ -2755,3 +2948,7 @@ if __name__ == "__main__":
     curses.wrapper(main)
     if RTL_COMMAND:
             print(RTL_COMMAND)
+    try:
+      clean_pipe(None, None)
+    except:
+      pass
