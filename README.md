@@ -53,7 +53,7 @@ The command is not executed, it's just printed on the terminal. Copy/Paste it to
 
 ## Named PIPE Function
 
-As from version 1.0.4, PySpecSDR, has the ability to export audio to a named PIPE file, at location /tmp/sdrpipe. This means that you can launch as many programs you want and decode the same source, at the same time ;)
+As from version 1.0.4, PySpecSDR, has the ability to export audio to a named PIPE file, at location /tmp/sdrpipe. This means that you can attach any decoding program to the pipe and decode the signal as you like.
 
 To start the process press the 'I' (capital I) key. The program will freeze and wait until another program attaches to the PIPE file (/tmp/sdrpipe). When it does, the program will work as before. To finish/end the process, just kill all the processes/programs that are attached to the PIPE file and it will close automatically.
 
