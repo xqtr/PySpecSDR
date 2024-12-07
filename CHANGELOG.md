@@ -82,7 +82,6 @@
 
 #### Features Added:
 * Named PIPE to /tmp/sdrpipe of audio, to use with any program that decodes signals, like multimon-ng.
-* Added another script to convert GQRX bookmarks to JSON format, that PySpecSDR reads.
 
 #### Bug Fixes:
 * Improved sound quality to NFM and WFM modes, thanks to ChrisDev8 (https://github.com/xqtr/PySpecSDR/issues/3)
