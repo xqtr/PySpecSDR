@@ -58,9 +58,11 @@ To start the process press the 'I' (capital I) key. The program will freeze and 
 
 The data exported to this file, is audio, with sample rate at 44100Hz, 16bit, mono. Below are some examples of commands that you can use:
 
-`sox -t raw -r 44100 -b 16 -e signed-integer /tmp/sdrpipe -t raw - | multimon-ng -t raw -a POCSAG1200 -
+```
+sox -t raw -r 44100 -b 16 -e signed-integer /tmp/sdrpipe -t raw - | multimon-ng -t raw -a POCSAG1200 -
 
-ffmpeg -f s16le -ar 44100 -ac 1 -i /tmp/sdrpipe output.wav`
+ffmpeg -f s16le -ar 44100 -ac 1 -i /tmp/sdrpipe output.wav
+```
 
 Multimon-ng, even if it has the ability to attach to a PIPE file, it seems it doesn't work. So using SOX is a trick to make it work. More examples on how to use multimon-ng with SOX, on the [multimon-ng](https://github.com/EliasOenal/multimon-ng)  git repo.
 
