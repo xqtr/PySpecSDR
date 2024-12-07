@@ -6,7 +6,7 @@
  / ____/ /_/ /___/ / /_/ /  __/ /__ ___/ / /_/ / _, _/ 
 /_/    \__, //____/ .___/\___/\___//____/_____/_/ |_|  
       /____/     /_/                                   
-                            
+                                       version 1.0.4
 ```
 
 ## PySpecSDR - Python SDR Spectrum Analyzer and Signal Processor
