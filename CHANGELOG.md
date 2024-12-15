@@ -85,3 +85,12 @@
 
 #### Bug Fixes:
 * Improved sound quality to NFM and WFM modes, thanks to ChrisDev8 (https://github.com/xqtr/PySpecSDR/issues/3)
+
+### Version 1.0.5 (2024/12/15)
+
+#### Fixes:
+* Change string for Narrow FM, to NFM, from FM, to avoid confusion (https://github.com/xqtr/PySpecSDR/issues/3)
+* IQ correction added to all demodulation modes (https://github.com/xqtr/PySpecSDR/issues/3)
+* Added filter between 300 and 3000 hz to remove low frequency harmonics and high pitched, out of band noise (between 300 and 3000 hz to remove low frequency harmonics and high pitched, out of band noise)
+* Converted all audio to Stereo, even in Mono sound the program outputs stereo/two channel sound.
+

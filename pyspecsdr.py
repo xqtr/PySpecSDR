@@ -28,7 +28,7 @@ Features:
 Requirements:
 - RTL-SDR compatible device
 - Python 3.7 or higher
-- Dependencies listed in installation.txt
+- Dependencies listed in requirements.txt
 
 License: GPL-3.0-or-later
 
@@ -55,8 +55,8 @@ SOFTWARE.
 Author: XQTR
 Email: xqtr@gmx.com // xqtr.xqtr@gmail.com
 GitHub: https://github.com/xqtr/PySpecSDR
-Version: 1.0.4
-Last Updated: 2024/12/07
+Version: 1.0.5
+Last Updated: 2024/12/15
 
 Usage:
     python3 pyspecsdr.py
@@ -83,8 +83,6 @@ from scipy.signal import firwin
 from scipy.signal import bilinear
 from scipy.signal import hilbert
 from scipy.signal import welch
-#import queue
-#import threading
 from collections import deque
 import time
 import os
@@ -203,7 +201,8 @@ BAND_PRESETS = {
 # Add recommended bandwidths for different modes
 BAND_BANDWIDTHS = {
     'AM': 10e3,
-    'FM': 200e3,
+    'NFM': 200e3,
+    'WFM': 100e6,
     'HAM160': 2.7e3,
     'HAM80': 2.7e3,
     'HAM40': 2.7e3,
@@ -242,14 +241,14 @@ WATERFALL_COLORS = [
 
 # Add these constants near the top with other constants
 DEMOD_MODES = {
-    'FM': {'name': 'FM', 'bandwidth': 200e3, 'description': 'Narrow FM'},
+    'NFM': {'name': 'NFM', 'bandwidth': 200e3, 'description': 'Narrow FM'},
     'WFM': {'name': 'Wide FM', 'bandwidth': 180e3, 'description': 'Wide FM (Broadcast)'},
     'AM': {'name': 'AM', 'bandwidth': 10e3, 'description': 'Amplitude Modulation'},
     'USB': {'name': 'USB', 'bandwidth': 3e3, 'description': 'Upper Sideband'},
     'LSB': {'name': 'LSB', 'bandwidth': 3e3, 'description': 'Lower Sideband'},
     'RAW': {'name': 'RAW', 'bandwidth': None, 'description': 'Raw IQ Samples'}
 }
-CURRENT_DEMOD = 'FM'  # Default demodulation mode
+CURRENT_DEMOD = 'NFM'  # Default demodulation mode
 
 # Add this with other constants near the top of the file
 zoom_step = 0.1e6  # 100 kHz zoom step
@@ -379,9 +378,7 @@ def showhelp(stdscr):
     # Initialize scroll position
     scroll_pos = 0
     max_scroll = max(0, total_height - (max_height - 2))
-    
     stdscr.nodelay(0)
-    
     while True:
         # Clear screen
         stdscr.clear()
@@ -790,11 +787,11 @@ def decode_mono(samples: np.ndarray, fs: int):
 
     return mono
 
-def demodulate_signal(samples, sample_rate, mode='FM'):
+def demodulate_signal(samples, sample_rate, mode='NFM'):
     """Advanced demodulation function supporting multiple modes"""
-    if mode == 'FM':
-        
-        return demodulate_fm(iq_correction(samples), sample_rate)
+    samples = iq_correction(samples)
+    if mode == 'NFM':
+        return demodulate_nfm(samples, sample_rate)
     elif mode == 'WFM':
         return demodulate_wfm(samples, sample_rate)
     elif mode == 'AM':
@@ -805,15 +802,36 @@ def demodulate_signal(samples, sample_rate, mode='FM'):
         return demodulate_ssb(samples, sample_rate, lower=True)
     elif mode == 'RAW':
         return np.real(samples)  # Return raw I samples
-    return np.zeros_like(samples)  # Return silence if mode not recognized
+    #return np.zeros_like(samples)  # Return silence if mode not recognized
+    return np.zeros((len(samples), 2))  # Ensure it returns a shape of (n, 2)
 
-def demodulate_fm(samples, sample_rate, target_rate=44100):
+# Filter to cut freq below/higher than 300/3000hz
+def butter_bandpass(lowcut, highcut, fs, order=5):
+    nyq = 0.5 * fs
+    low = lowcut / nyq
+    high = highcut / nyq
+    b, a = butter(order, [low, high], btype='band')
+    return b, a
+
+def mono_to_stereo(mono_audio):
+    """Convert mono audio to stereo by duplicating the mono signal."""
+    stereo_audio = np.zeros((len(mono_audio), 2))  # Initialize stereo array
+    stereo_audio[:, 0] = mono_audio  # Left channel
+    stereo_audio[:, 1] = mono_audio  # Right channel (duplicate)
+    return stereo_audio
+    
+def demodulate_nfm(samples, sample_rate, target_rate=44100):
     """Simplified FM demodulation"""
     # Basic FM demodulation
     demod = np.angle(samples[1:] * np.conj(samples[:-1]))
     
     # Simple scaling
     demod = demod * (sample_rate / (2 * np.pi))
+    
+    # Apply the bandpass filter for NFM
+    lowcut = 300.0  # Low cutoff frequency
+    highcut = 3000.0  # High cutoff frequency
+    filtered_demod = bandpass_filter(demod, lowcut, highcut, sample_rate)
 
     # Basic lowpass filter
     nyq = sample_rate / 2
@@ -827,38 +845,104 @@ def demodulate_fm(samples, sample_rate, target_rate=44100):
     
     # Basic normalization
     audio = audio / np.max(np.abs(audio)) * 0.95
-    return audio
+    return mono_to_stereo(audio)
     
-def demodulate_wfm(samples, sample_rate, target_rate=44100):
-    """Wide FM demodulation optimized for broadcast FM."""
-    # Step 1: Pre-emphasis filter (high-pass)
-    pre_emphasis_filter = firwin(65, 2.125e3 / sample_rate, pass_zero=False, window="hamming")
-    samples = lfilter(pre_emphasis_filter, 1.0, samples)
+def bandpass_filter(data, lowcut, highcut, sample_rate):
+    """Apply a bandpass filter to the data."""
+    from scipy.signal import butter, sosfilt
+    if lowcut <= 0:
+        # Use a lowpass filter if lowcut is not valid
+        sos = butter(10, highcut / (sample_rate / 2), btype='low', output='sos')
+    else:
+        sos = butter(10, [lowcut / (sample_rate / 2), highcut / (sample_rate / 2)], btype='band', output='sos')
+    return sosfilt(sos, data)
 
-    # Step 2: FM demodulation
+
+def demodulate_wfm(samples, sample_rate, target_rate=44100):
+    """Wide FM demodulation with stereo decoding."""
+    # Step 1: FM demodulation
     demod = np.angle(samples[1:] * np.conj(samples[:-1]))
-    demod = demod * (sample_rate / (2 * np.pi))  # Convert from radians to Hz deviation
-    
-    # Step 3: De-emphasis filter (for 75 µs time constant)
+
+    # Step 2: Extract the baseband (L+R), pilot, and stereo difference (L-R) signals
+    # Lowpass filter for L+R (0-15 kHz)
+    l_plus_r = bandpass_filter(demod, 0, 15000, sample_rate)
+
+
+    # Bandpass filter for the 19 kHz pilot tone
+    pilot = bandpass_filter(demod, 19000 - 200, 19000 + 200, sample_rate)
+    pilot = np.sin(np.unwrap(np.angle(lfilter([1], [1, -0.99], pilot))))  # Extract phase
+
+    # Bandpass filter for the 38 kHz L-R signal
+    l_minus_r = bandpass_filter(demod, 38000 - 15000, 38000 + 15000, sample_rate)
+    l_minus_r = l_minus_r * (2 * pilot)  # Demodulate using the pilot tone
+
+    # Lowpass filter the demodulated L-R signal to remove high-frequency artifacts
+    l_minus_r = bandpass_filter(l_minus_r, 0, 15000, sample_rate)
+
+    # Step 3: Combine L+R and L-R to get L and R
+    left = (l_plus_r + l_minus_r) / 2
+    right = (l_plus_r - l_minus_r) / 2
+
+    # Step 4: De-emphasis filter (75 µs time constant)
     deemph_tc = 75e-6  # 75 µs (FM standard)
     alpha = np.exp(-1 / (deemph_tc * sample_rate))
     b = [1 - alpha]
     a = [1, -alpha]
-    demod = lfilter(b, a, demod)
+    left = lfilter(b, a, left)
+    right = lfilter(b, a, right)
 
-    # Step 4: Decimation to target sample rate
+    # Step 5: Decimate to target sample rate
     decimation_factor = int(sample_rate / target_rate)
     if decimation_factor > 1:
-        demod = decimate(demod, decimation_factor, zero_phase=True)
+        left = decimate(left, decimation_factor, zero_phase=True)
+        right = decimate(right, decimation_factor, zero_phase=True)
 
-    # Step 6: Noise reduction (optional post-processing)
-    noise_floor = 0.01  # Threshold for noise reduction
-    demod = np.where(np.abs(demod) > noise_floor, demod, 0)
+    # Step 6: Normalize the audio
+    max_val = max(np.max(np.abs(left)), np.max(np.abs(right)))
+    left /= max_val
+    right /= max_val
 
-    # Step 7: Normalize the audio
-    audio = demod / np.max(np.abs(demod)) * 0.95
-
+    # Step 7: Combine into stereo
+    audio = np.column_stack((left, right))
     return audio
+
+    
+# def demodulate_wfm(samples, sample_rate, target_rate=44100):
+    # """Wide FM demodulation optimized for broadcast FM."""
+    # # Step 1: Pre-emphasis filter (high-pass)
+    # pre_emphasis_filter = firwin(65, 2.125e3 / sample_rate, pass_zero=False, window="hamming")
+    # samples = lfilter(pre_emphasis_filter, 1.0, samples)
+
+    # # Step 2: FM demodulation
+    # demod = np.angle(samples[1:] * np.conj(samples[:-1]))
+    # demod = demod * (sample_rate / (2 * np.pi))  # Convert from radians to Hz deviation
+    
+    # # Apply the bandpass filter for WFM
+    # lowcut = 300.0  # Low cutoff frequency
+    # highcut = 3000.0  # High cutoff frequency
+    # filtered_demod = bandpass_filter(demod, lowcut, highcut, sample_rate)
+    
+    # # Step 3: De-emphasis filter (for 75 µs time constant)
+    # deemph_tc = 75e-6  # 75 µs (FM standard)
+    # alpha = np.exp(-1 / (deemph_tc * sample_rate))
+    # b = [1 - alpha]
+    # a = [1, -alpha]
+    # demod = lfilter(b, a, demod)
+
+    # # Step 4: Decimation to target sample rate
+    # decimation_factor = int(sample_rate / target_rate)
+    # if decimation_factor > 1:
+        # demod = decimate(demod, decimation_factor, zero_phase=True)
+
+    # # Step 6: Noise reduction (optional post-processing)
+    # noise_floor = 0.01  # Threshold for noise reduction
+    # demod = np.where(np.abs(demod) > noise_floor, demod, 0)
+
+    # # Step 7: Normalize the audio
+    # audio = demod / np.max(np.abs(demod)) * 0.95
+    # audio = np.column_stack((audio, audio))  # Duplicate for stereo
+    # return audio
+    
 
 def demodulate_am(samples):
     """AM demodulation using envelope detection"""
@@ -868,8 +952,15 @@ def demodulate_am(samples):
     # DC removal (high-pass filter)
     envelope = envelope - np.mean(envelope)
     
+    # Apply the bandpass filter to remove low and high frequency harmonics
+    fs = 44100  # Sample rate (adjust as necessary)
+    lowcut = 300.0  # Low cutoff frequency
+    highcut = 3000.0  # High cutoff frequency
+    filtered_envelope = bandpass_filter(envelope, lowcut, highcut, fs)
+
     # Normalize
-    return envelope / np.max(np.abs(envelope)) * 0.95
+    audio = filtered_envelope / np.max(np.abs(filtered_envelope)) * 0.95 
+    return mono_to_stereo(audio)
 
 def demodulate_ssb(samples, sample_rate, lower=True):
     """Single-sideband demodulation"""
@@ -889,7 +980,8 @@ def demodulate_ssb(samples, sample_rate, lower=True):
     demod = np.real(analytical)
     
     # Normalize
-    return demod / np.max(np.abs(demod)) * 0.95
+    audio = demod / np.max(np.abs(demod)) * 0.95 
+    return mono_to_stereo(audio)
 
 def butter_lowpass(cutoff, fs, order=5):
     nyq = 0.5 * fs
@@ -903,19 +995,19 @@ def lowpass_filter(data, cutoff=3000, fs=44100, order=5):
     return y
         
 def audio_callback(outdata, frames, time, status):
-    """Simplified audio callback that writes to a pipe if enabled."""
+    """Audio callback that writes stereo data to the output."""
     if len(audio_buffer) > 0:
         data = np.concatenate(list(audio_buffer))
         if len(data) >= frames:
-            outdata[:] = data[:frames].reshape(-1, 1)
+            outdata[:] = data[:frames].reshape(-1, 2)  # Reshape for stereo output
             audio_buffer.clear()
             if len(data) > frames:
                 audio_buffer.append(data[frames:])
         else:
-            outdata[:] = np.zeros((frames, 1))
+            outdata[:] = np.zeros((frames, 2))  # Stereo output
     else:
-        outdata[:] = np.zeros((frames, 1))
-
+        outdata[:] = np.zeros((frames, 2))  # Stereo output
+        
 def load_bookmarks():
     try:
         with open(BOOKMARK_FILE, 'r') as f:
@@ -1060,7 +1152,7 @@ def play_recorded_signal(filename):
 def start_audio_recording(filename, sample_rate=44100):
     """Start recording audio to a WAV file"""
     wav_file = wave.open(filename, 'wb')
-    wav_file.setnchannels(1)  # Mono
+    wav_file.setnchannels(2)  # stereo
     wav_file.setsampwidth(2)  # 2 bytes per sample
     wav_file.setframerate(sample_rate)
     return wav_file
@@ -1108,7 +1200,7 @@ def load_settings():
         'frequency': '92.5e6',
         'sample_rate': '1.024e6',
         'gain': 'auto',  # Keep as string for 'auto'
-        'bandwidth': '2e6',
+        'bandwidth': '1e6',
         'freq_step': '0.1e6',
         'samples': '7',
         'agc_enabled': 'False',
@@ -2319,7 +2411,7 @@ def init_audio_device():
     try:
         # Try to create output stream without specifying backend
         test_stream = sd.OutputStream(
-            channels=1,
+            channels=2,
             samplerate=44100,
             blocksize=2048,
             dtype=np.float32
@@ -2529,7 +2621,7 @@ def main(stdscr):
                             if audio_enabled and stream is None:
                                 try:
                                     stream = sd.OutputStream(
-                                        channels=1,
+                                        channels=2,
                                         samplerate=44100,
                                         callback=audio_callback,
                                         blocksize=2048,
