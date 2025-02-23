@@ -73,6 +73,7 @@ Changelog:
     
 '''
 
+from pyspecconst import *
 import numpy as np
 import curses
 from rtlsdr import RtlSdr
@@ -94,6 +95,7 @@ import struct
 import SoapySDR
 from SoapySDR import SOAPY_SDR_RX, SOAPY_SDR_CF32
 import signal
+import pyspecaprs
 
 
 audio_buffer = deque(maxlen=24)  # Increased from 16 for better continuity
@@ -125,107 +127,6 @@ MIN_SIGNAL_BANDWIDTH = 50e3  # Minimum bandwidth to consider as a signal
 SCAN_DWELL_TIME = 0.1  # Seconds to dwell on each frequency
 SCAN_ACTIVE = False    # Global flag for scan state
 
-# Add near the top of the file with other constants
-BAND_PRESETS = {
-    # Amateur Radio Bands
-    'HAM160': (1.8e6, 2.0e6, "160m Amateur Band"),
-    'HAM80': (3.5e6, 4.0e6, "80m Amateur Band"),
-    'HAM60': (5.3515e6, 5.3665e6, "60m Amateur Band"),
-    'HAM40': (7.0e6, 7.3e6, "40m Amateur Band"),
-    'HAM30': (10.1e6, 10.15e6, "30m Amateur Band"),
-    'HAM20': (14.0e6, 14.35e6, "20m Amateur Band"),
-    'HAM17': (18.068e6, 18.168e6, "17m Amateur Band"),
-    'HAM15': (21.0e6, 21.45e6, "15m Amateur Band"),
-    'HAM12': (24.89e6, 24.99e6, "12m Amateur Band"),
-    'HAM10': (28.0e6, 29.7e6, "10m Amateur Band"),
-    'HAM6': (50.0e6, 54.0e6, "6m Amateur Band"),
-    'HAM2': (144.0e6, 148.0e6, "2m Amateur Band"),
-    'HAM70CM': (420.0e6, 450.0e6, "70cm Amateur Band"),
-    
-    # CB Radio
-    'CB': (26.965e6, 27.405e6, "Citizens Band Radio"),
-    
-    # Marine Bands
-    'MARINE': (156.0e6, 162.025e6, "Marine VHF"),
-    'MARINE_MF': (1.605e6, 4.0e6, "Marine MF Band"),
-    
-    # Aviation
-    'AIR_VOICE': (118.0e6, 137.0e6, "Aircraft Voice Comms"),
-    'AIR_NAV': (108.0e6, 117.975e6, "Aircraft Navigation"),
-    
-    # Emergency Services
-    'NOAA': (162.4e6, 162.55e6, "NOAA Weather Radio"),
-    'PUBLIC': (152.0e6, 162.0e6, "Public Safety VHF"),
-    'PUBLIC_UHF': (450.0e6, 470.0e6, "Public Safety UHF"),
-    
-    # Broadcast
-    'AM': (535e3, 1.705e6, "AM Broadcast"),
-    'FM': (87.5e6, 108.0e6, "FM Broadcast"),
-    'SW1': (2.3e6, 2.495e6, "Shortwave Band 1"),
-    'SW2': (3.2e6, 3.4e6, "Shortwave Band 2"),
-    'SW3': (4.75e6, 4.995e6, "Shortwave Band 3"),
-    'SW4': (5.9e6, 6.2e6, "Shortwave Band 4"),
-    'SW5': (7.3e6, 7.35e6, "Shortwave Band 5"),
-    'SW6': (9.4e6, 9.9e6, "Shortwave Band 6"),
-    'SW7': (11.6e6, 12.1e6, "Shortwave Band 7"),
-    'SW8': (13.57e6, 13.87e6, "Shortwave Band 8"),
-    'SW9': (15.1e6, 15.8e6, "Shortwave Band 9"),
-    'SW10': (17.48e6, 17.9e6, "Shortwave Band 10"),
-    'SW11': (21.45e6, 21.85e6, "Shortwave Band 11"),
-    'SW12': (25.67e6, 26.1e6, "Shortwave Band 12"),
-    
-    # Digital Modes Common Frequencies
-    'FT8_40': (7.074e6, 7.076e6, "40m FT8"),
-    'FT8_20': (14.074e6, 14.076e6, "20m FT8"),
-    'PSK31_40': (7.070e6, 7.071e6, "40m PSK31"),
-    'PSK31_20': (14.070e6, 14.071e6, "20m PSK31"),
-    'RTTY_40': (7.080e6, 7.125e6, "40m RTTY"),
-    'RTTY_20': (14.080e6, 14.099e6, "20m RTTY"),
-    
-    # CW (Morse) Common Frequencies
-    'CW_80': (3.5e6, 3.6e6, "80m CW"),
-    'CW_40': (7.0e6, 7.125e6, "40m CW"),
-    'CW_30': (10.1e6, 10.13e6, "30m CW"),
-    'CW_20': (14.0e6, 14.15e6, "20m CW"),
-    
-    # Satellite
-    'SAT_VHF': (145.8e6, 146.0e6, "Amateur Satellite VHF"),
-    'SAT_UHF': (435.0e6, 438.0e6, "Amateur Satellite UHF"),
-    'NOAA_SAT': (137.0e6, 138.0e6, "NOAA Weather Satellites"),
-    
-    # Time Signals
-    'WWV': (2.5e6, 20.0e6, "WWV Time Signals"),
-    'WWVH': (2.5e6, 15.0e6, "WWVH Time Signals"),
-}
-
-# Add recommended bandwidths for different modes
-BAND_BANDWIDTHS = {
-    'AM': 10e3,
-    'NFM': 200e3,
-    'WFM': 100e6,
-    'HAM160': 2.7e3,
-    'HAM80': 2.7e3,
-    'HAM40': 2.7e3,
-    'HAM20': 2.7e3,
-    'CB': 10e3,
-    'MARINE': 16e3,
-    'AIR_VOICE': 8.33e3,
-    'NOAA': 25e3,
-    'FT8_40': 3e3,
-    'FT8_20': 3e3,
-    'PSK31_40': 500,
-    'PSK31_20': 500,
-    'RTTY_40': 3e3,
-    'RTTY_20': 3e3,
-    'CW_80': 500,
-    'CW_40': 500,
-    'CW_30': 500,
-    'CW_20': 500,
-    'SAT_VHF': 50e3,
-    'SAT_UHF': 50e3,
-    'NOAA_SAT': 40e3,
-}
-
 # Add these constants near the top with other constants
 WATERFALL_HISTORY = []
 WATERFALL_MAX_LINES = 30  # Number of history lines to keep
@@ -252,35 +153,6 @@ CURRENT_DEMOD = 'NFM'  # Default demodulation mode
 
 # Add this with other constants near the top of the file
 zoom_step = 0.1e6  # 100 kHz zoom step
-
-# Add near the top with other constants
-SIGNAL_TYPES = {
-    'FM_BROADCAST': {
-        'bandwidth': (150e3, 200e3),
-        'pattern': 'wideband_fm',
-        'description': 'FM Radio Broadcast'
-    },
-    'NARROW_FM': {
-        'bandwidth': (10e3, 16e3),
-        'pattern': 'narrowband_fm',
-        'description': 'Narrow FM (Amateur/Business)'
-    },
-    'AM_BROADCAST': {
-        'bandwidth': (8e3, 10e3),
-        'pattern': 'am',
-        'description': 'AM Radio Broadcast'
-    },
-    'SSB': {
-        'bandwidth': (2.4e3, 3e3),
-        'pattern': 'ssb',
-        'description': 'Single Sideband'
-    },
-    'DIGITAL': {
-        'bandwidth': (6e3, 50e3),
-        'pattern': 'digital',
-        'description': 'Digital Signal'
-    }
-}
 
 # Add near other constants
 PERSISTENCE_HISTORY = []
@@ -331,47 +203,6 @@ def init_colors():
 def showhelp(stdscr):
     """Display help information with scrolling capability"""
     max_height, max_width = stdscr.getmaxyx()
-    
-    # Define help content with categories
-    help_content = [
-        ("General Controls", [
-            ("q", "Quit program"),
-            ("h", "Show this help screen"),
-            ("w", "Save current settings"),
-            ("m", "Cycle through display modes"),
-            ("1-6", "Quick switch display modes"),
-            ("/", "RTL Commands Selector"),
-        ]),
-        ("Frequency Controls", [
-            ("F/f", "Change frequency up/down by step"),
-            ("Up/Down", "Change frequency by 1 MHz"),
-            ("Right/Left", "Change frequency by 0.5 MHz"),
-            ("x", "Set exact frequency"),
-            ("T/t", "Increase/decrease frequency step"),
-        ]),
-        ("Signal Controls", [
-            ("B/b", "Increase/reduce bandwidth"),
-            ("S/s", "Increase/decrease samples"),
-            ("G/g", "Increase/decrease gain"),
-            ("A", "Toggle Automatic Gain Control (AGC)"),
-        ]),
-        ("Frequency Correction", [
-            ("P/p", "Increase/decrease PPM correction"),
-            ("O", "Set exact PPM correction value"),
-        ]),
-        ("Audio Controls", [
-            ("a", "Toggle audio on/off"),
-            ("d", "Change demodulation mode"),
-            ("R", "Start/Stop audio recording"),
-            ("I", "Start/Stop named PIPE at /tmp/sdrpipe"),
-        ]),
-        ("Frequency Management", [
-            ("k/l", "Save/Load frequency bookmark"),
-            ("n", "Access band presets"),
-            ("c", "Start frequency scanner"),
-            ("C", "Show scan results"),
-        ]),
-    ]
 
     # Calculate total content height
     total_height = sum(2 + len(section[1]) for section in help_content) + 15
@@ -906,44 +737,6 @@ def demodulate_wfm(samples, sample_rate, target_rate=44100):
     audio = np.column_stack((left, right))
     return audio
 
-    
-# def demodulate_wfm(samples, sample_rate, target_rate=44100):
-    # """Wide FM demodulation optimized for broadcast FM."""
-    # # Step 1: Pre-emphasis filter (high-pass)
-    # pre_emphasis_filter = firwin(65, 2.125e3 / sample_rate, pass_zero=False, window="hamming")
-    # samples = lfilter(pre_emphasis_filter, 1.0, samples)
-
-    # # Step 2: FM demodulation
-    # demod = np.angle(samples[1:] * np.conj(samples[:-1]))
-    # demod = demod * (sample_rate / (2 * np.pi))  # Convert from radians to Hz deviation
-    
-    # # Apply the bandpass filter for WFM
-    # lowcut = 300.0  # Low cutoff frequency
-    # highcut = 3000.0  # High cutoff frequency
-    # filtered_demod = bandpass_filter(demod, lowcut, highcut, sample_rate)
-    
-    # # Step 3: De-emphasis filter (for 75 µs time constant)
-    # deemph_tc = 75e-6  # 75 µs (FM standard)
-    # alpha = np.exp(-1 / (deemph_tc * sample_rate))
-    # b = [1 - alpha]
-    # a = [1, -alpha]
-    # demod = lfilter(b, a, demod)
-
-    # # Step 4: Decimation to target sample rate
-    # decimation_factor = int(sample_rate / target_rate)
-    # if decimation_factor > 1:
-        # demod = decimate(demod, decimation_factor, zero_phase=True)
-
-    # # Step 6: Noise reduction (optional post-processing)
-    # noise_floor = 0.01  # Threshold for noise reduction
-    # demod = np.where(np.abs(demod) > noise_floor, demod, 0)
-
-    # # Step 7: Normalize the audio
-    # audio = demod / np.max(np.abs(demod)) * 0.95
-    # audio = np.column_stack((audio, audio))  # Duplicate for stereo
-    # return audio
-    
-
 def demodulate_am(samples):
     """AM demodulation using envelope detection"""
     # Get the amplitude envelope
@@ -982,6 +775,306 @@ def demodulate_ssb(samples, sample_rate, lower=True):
     # Normalize
     audio = demod / np.max(np.abs(demod)) * 0.95 
     return mono_to_stereo(audio)
+
+# APRS Functions
+
+def decode_afsk(samples, sample_rate):
+    """
+    Demodulate Bell 202 AFSK (1200/2200 Hz)
+    Returns bit stream
+    """
+    # Filter for AFSK tones
+    filtered_1200 = bandpass_filter(samples, 1100, 1300, sample_rate)
+    filtered_2200 = bandpass_filter(samples, 2100, 2300, sample_rate)
+    
+    # Calculate energy in each band
+    window = int(sample_rate / 1200)  # One bit period
+    bits = []
+    
+    for i in range(0, len(samples) - window, window):
+        e1200 = np.sum(filtered_1200[i:i+window]**2)
+        e2200 = np.sum(filtered_2200[i:i+window]**2)
+        bits.append(1 if e2200 > e1200 else 0)
+        
+    return bits
+
+def decode_aprs(samples, sample_rate):
+    """
+    Decode APRS packets from audio samples
+    Returns list of decoded packets
+    """
+    # Convert to real if complex
+    if np.iscomplexobj(samples):
+        samples = np.real(samples)
+    
+    # Normalize audio
+    samples = samples / np.max(np.abs(samples))
+    
+    # Demodulate AFSK to get bit stream
+    bits = decode_afsk(samples, sample_rate)
+    
+    # Decode AX.25 frame
+    packet = pyspecaprs.decode_ax25_frame(bits)
+    
+    return [packet] if packet else []
+
+def show_aprs_decoder(stdscr, sdr, sample_rate):
+    """
+    Show APRS decoder interface
+    """
+    stdscr.clear()
+    stdscr.addstr(0, 0, "APRS Decoder - Press 'q' to exit")
+    stdscr.addstr(2, 0, "Listening for APRS packets...")
+    stdscr.refresh()
+    
+    while True:
+        # Read samples
+        samples = sdr.read_samples(int(sample_rate * 0.5))  # 0.5 second buffer
+        
+        # Decode APRS
+        packets = decode_aprs(samples, sample_rate)
+        
+        # Display results
+        if packets:
+            for i, packet in enumerate(packets):
+                if packet and 4 + i < stdscr.getmaxyx()[0]:
+                    # Clean the packet string - remove null chars and non-printable chars
+                    clean_packet = ''.join(c for c in packet if c.isprintable() or c.isspace())
+                    # Truncate to screen width
+                    max_width = stdscr.getmaxyx()[1] - 1
+                    display_str = clean_packet[:max_width]
+                    try:
+                        stdscr.addstr(4 + i, 0, display_str)
+                    except:
+                        pass  # Skip if we can't display this packet
+        
+        stdscr.refresh()
+        
+        # Check for quit
+        if stdscr.getch() == ord('q'):
+            break
+
+# Morse Code functions
+
+def decode_morse(samples, sample_rate, threshold=-20):
+    """
+    Decode Morse code from audio samples
+    
+    Args:
+        samples: numpy array of audio samples (complex IQ data)
+        sample_rate: sampling rate in Hz
+        threshold: signal detection threshold in dB
+    
+    Returns:
+        decoded_text: string of decoded text
+        timing_data: dict with timing statistics
+    """
+    # Convert complex samples to magnitude
+    envelope = np.abs(samples)
+    
+    # Normalize and convert to dB
+    envelope = envelope / np.max(envelope)
+    envelope_db = 20 * np.log10(envelope + 1e-10)
+    
+    # Rest of the function remains the same...
+    # Detect signals above threshold
+    signals = envelope_db > threshold
+    
+    # Find transitions
+    transitions = np.diff(signals.astype(int))
+    rise_times = np.where(transitions == 1)[0]
+    fall_times = np.where(transitions == -1)[0]
+    
+    if len(rise_times) == 0 or len(fall_times) == 0:
+        return "", {"dot": 0, "dash": 0, "gap": 0}
+    
+    # Ensure we have matching rises and falls
+    if fall_times[0] < rise_times[0]:
+        fall_times = fall_times[1:]
+    if len(rise_times) > len(fall_times):
+        rise_times = rise_times[:-1]
+    
+    # Calculate pulse durations
+    durations = (fall_times - rise_times) / sample_rate
+    gaps = (rise_times[1:] - fall_times[:-1]) / sample_rate
+    
+    if len(durations) == 0:
+        return "", {"dot": 0, "dash": 0, "gap": 0}
+    
+    # Estimate dot/dash threshold using k-means clustering
+    if len(durations) > 1:
+        from scipy.cluster import vq
+        centroids, _ = vq.kmeans(durations.reshape(-1, 1), 2)
+        dot_duration = np.min(centroids)
+        dash_duration = np.max(centroids)
+    else:
+        dot_duration = np.min(durations)
+        dash_duration = dot_duration * 3
+    
+    # Classify dots and dashes
+    morse_symbols = []
+    current_letter = []
+    
+    for i, duration in enumerate(durations):
+        # Add symbol
+        if duration < (dot_duration + dash_duration) / 2:
+            current_letter.append('.')
+        else:
+            current_letter.append('-')
+            
+        # Check for letter gaps
+        if i < len(gaps):
+            if gaps[i] > dot_duration * 3:
+                morse_symbols.append(''.join(current_letter))
+                current_letter = []
+                # Check for word gaps
+                if gaps[i] > dot_duration * 7:
+                    morse_symbols.append(' ')
+    
+    # Add final letter if present
+    if current_letter:
+        morse_symbols.append(''.join(current_letter))
+    
+    # Translate to text
+    decoded_text = ''
+    for symbol in morse_symbols:
+        if symbol == ' ':
+            decoded_text += ' '
+        elif symbol in MORSE_CODE:
+            decoded_text += MORSE_CODE[symbol]
+        else:
+            decoded_text += '?'
+    
+    timing_data = {
+        "dot": dot_duration,
+        "dash": dash_duration,
+        "gap": np.mean(gaps) if len(gaps) > 0 else 0
+    }
+    
+    return decoded_text, timing_data
+
+def show_morse_decoder(stdscr, sdr, sample_rate):
+    """Display Morse code decoder interface with continuous decoding"""
+    max_height, max_width = stdscr.getmaxyx()
+    
+    # Save original SDR settings
+    original_freq = sdr.center_freq
+    original_sample_rate = sdr.sample_rate
+    original_gain = sdr.gain
+    
+    try:
+        # Configure SDR for Morse reception
+        sdr.sample_rate = 48000  # Lower sample rate for CW
+        sdr.bandwidth = 2000     # Narrow bandwidth for CW
+        time.sleep(0.1)          # Let the SDR settle
+        
+        # Enable nodelay for continuous updates
+        stdscr.nodelay(True)
+        
+        # Initialize display buffer for scrolling text
+        text_buffer = []
+        max_buffer_lines = max_height - 12  # Reserve space for header and timing info
+        
+        while True:
+            try:
+                # Read new samples
+                num_samples = int(sdr.sample_rate * 0.5)  # 0.5 seconds of data
+                samples = sdr.read_samples(num_samples)
+                
+                if len(samples) == 0:
+                    continue
+                
+                # Decode the morse code
+                decoded_text, timing = decode_morse(samples, sdr.sample_rate)
+                
+                if decoded_text.strip():  # Only add non-empty decoded text
+                    text_buffer.append(decoded_text)
+                    # Keep buffer size limited
+                    if len(text_buffer) > max_buffer_lines:
+                        text_buffer.pop(0)
+                
+                # Clear screen and show results
+                stdscr.clear()
+                
+                # Show header
+                header = "Morse Code Decoder (Press 'q' to quit)"
+                stdscr.addstr(0, 2, header, curses.color_pair(1) | curses.A_BOLD)
+                stdscr.addstr(1, 2, "-" * len(header), curses.color_pair(2))
+                
+                # Show current frequency
+                freq_info = f"Frequency: {sdr.center_freq/1e6:.3f} MHz"
+                stdscr.addstr(2, 2, freq_info, curses.color_pair(2))
+                
+                # Show timing information
+                timing_info = (f"Timing Statistics:\n"
+                             f"Dot duration: {timing['dot']*1000:.1f} ms\n"
+                             f"Dash duration: {timing['dash']*1000:.1f} ms\n"
+                             f"Average gap: {timing['gap']*1000:.1f} ms")
+                
+                for i, line in enumerate(timing_info.split('\n')):
+                    stdscr.addstr(4+i, 2, line, curses.color_pair(2))
+                
+                # Show decoded text header
+                stdscr.addstr(9, 2, "Decoded Text:", curses.color_pair(1) | curses.A_BOLD)
+                
+                # Show scrolling decoded text
+                for i, text in enumerate(text_buffer):
+                    try:
+                        # Word wrap each line
+                        words = text.split()
+                        current_line = ""
+                        line_num = i
+                        
+                        for word in words:
+                            if len(current_line) + len(word) + 1 > max_width - 4:
+                                stdscr.addstr(10+line_num, 2, current_line, curses.color_pair(4))
+                                current_line = word
+                                line_num += 1
+                            else:
+                                current_line += (" " + word if current_line else word)
+                        
+                        if current_line:
+                            stdscr.addstr(10+line_num, 2, current_line, curses.color_pair(4))
+                            
+                    except curses.error:
+                        # Skip if we run out of screen space
+                        pass
+                
+                # Show footer
+                stdscr.addstr(max_height-2, 2, "Press 'q' to quit", curses.color_pair(2))
+                
+                stdscr.refresh()
+                
+                # Check for quit command
+                try:
+                    key = stdscr.getch()
+                    if key == ord('q'):
+                        break
+                except curses.error:
+                    pass
+                
+                # Small delay to prevent excessive CPU usage
+                time.sleep(0.1)
+                
+            except RuntimeError as e:
+                # Handle stream errors
+                stdscr.addstr(max_height-1, 2, f"Stream error: {str(e)}", curses.color_pair(3))
+                stdscr.refresh()
+                time.sleep(1)
+                continue
+                
+    finally:
+        # Restore original SDR settings
+        sdr.center_freq = original_freq
+        sdr.sample_rate = original_sample_rate
+        sdr.gain = original_gain
+        time.sleep(0.1)  # Let the SDR settle
+        
+        # Restore normal terminal behavior
+        stdscr.nodelay(False)
+
+
+# End of Morse Code functions    
 
 def butter_lowpass(cutoff, fs, order=5):
     nyq = 0.5 * fs
@@ -1362,7 +1455,7 @@ def show_band_presets(stdscr):
     
     return None, None
 
-def scan_frequencies(sdr, start_freq, end_freq, threshold, step=SCAN_STEP):
+def scan_frequencies(stdscr,sdr, start_freq, end_freq, threshold, step=SCAN_STEP):
     """Scan frequency range and detect signals above threshold"""
     signals = []
     current_freq = start_freq
@@ -2873,6 +2966,14 @@ def main(stdscr):
                                     curses.color_pair(4))
                         stdscr.refresh()
                         time.sleep(1)
+                elif key == ord('M'):  # Add Morse decoder option
+                    show_morse_decoder(stdscr, sdr, sdr.sample_rate)
+                    stdscr.clear()
+                    stdscr.refresh()
+                elif key == ord('.'):  # Add APRS decoder option
+                    show_aprs_decoder(stdscr, sdr, sdr.sample_rate)
+                    stdscr.clear()
+                    stdscr.refresh()
                 elif key == ord('m'):  # Mode switch
                     current_mode_index = DISPLAY_MODES.index(current_display_mode)
                     current_display_mode = DISPLAY_MODES[(current_mode_index + 1) % len(DISPLAY_MODES)]
