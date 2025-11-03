@@ -94,3 +94,13 @@
 * Added filter between 300 and 3000 hz to remove low frequency harmonics and high pitched, out of band noise (between 300 and 3000 hz to remove low frequency harmonics and high pitched, out of band noise)
 * Converted all audio to Stereo, even in Mono sound the program outputs stereo/two channel sound.
 
+### Version 1.0.6 (2025/11/03)
+
+#### Features Added:
+* VFO/MR mode, with many chanells in various bands to select. You can easily navigate through chanells and also your bookmarks.
+* Squelch functionality. Use [,] keys to increase/decrease squelch
+* Added command line paramaters. Give --help to see all of them.
+
+#### Fixes:
+* Changed the colors of the spectrum, to follow the theme of the application and be more vibrant
+* Reconfigured the code, in seperate files (still needs work) and cleaned the code.
