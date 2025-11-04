@@ -101,7 +101,7 @@ import decoders
 import ui
 
 
-audio_buffer = deque(maxlen=24)  # Increased from 16 for better continuity
+audio_buffer = deque(maxlen=128)  # Increased from 16 for better continuity, was 24
 SAMPLES = 7
 INTENSITY_CHARS = ' .,:|\\'  # Simple ASCII characters for intensity levels
 BOOKMARK_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "sdr_bookmarks.json")
@@ -2337,9 +2337,9 @@ def main(stdscr, startup_freq=None, video_mode="SPECTRUM", device=None):
                                     try:
                                         stream = sd.OutputStream(
                                             channels=2,
-                                            samplerate=44100,
+                                            samplerate=DEFAULT_SAMPLE_RATE,
                                             callback=audio_callback,
-                                            blocksize=2048,
+                                            blocksize=DEFAULT_BLOCK_SIZE,
                                             latency=0.1,
                                             dtype=np.float32
                                         )

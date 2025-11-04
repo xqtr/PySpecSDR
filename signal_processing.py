@@ -6,6 +6,8 @@ from scipy.signal import decimate
 from scipy.signal import bilinear
 from scipy.signal import resample_poly
 
+from pyspecconst import DEFAULT_SAMPLE_RATE
+
 
 # Filter to cut freq below/higher than 300/3000hz
 def butter_bandpass(lowcut, highcut, fs, order=5):
@@ -23,7 +25,7 @@ def butter_lowpass(cutoff, fs, order=5):
     return b, a
 
 
-def lowpass_filter(data, cutoff=3000, fs=44100, order=5):
+def lowpass_filter(data, cutoff=3000, fs=DEFAULT_SAMPLE_RATE, order=5):
     b, a = butter_lowpass(cutoff, fs, order=order)
     y = lfilter(b, a, data)
     return y
@@ -86,7 +88,7 @@ def mono_to_stereo(mono_audio):
     return stereo_audio
     
 
-def demodulate_nfm(samples, sample_rate, target_rate=44100):
+def demodulate_nfm(samples, sample_rate, target_rate=DEFAULT_SAMPLE_RATE):
     """Simplified FM demodulation"""
     # Basic FM demodulation
     demod = np.angle(samples[1:] * np.conj(samples[:-1]))
@@ -114,7 +116,7 @@ def demodulate_nfm(samples, sample_rate, target_rate=44100):
     return mono_to_stereo(audio)
 
 
-def demodulate_wfm(samples, sample_rate, target_rate=44100):
+def demodulate_wfm(samples, sample_rate, target_rate=DEFAULT_SAMPLE_RATE):
     """Wide FM demodulation with stereo decoding."""
     # Step 1: FM demodulation
     demod = np.angle(samples[1:] * np.conj(samples[:-1]))
@@ -183,7 +185,7 @@ def demodulate_am(samples):
     envelope = envelope - np.mean(envelope)
 
     # Apply the bandpass filter to remove low and high frequency harmonics
-    fs = 44100  # Sample rate (adjust as necessary)
+    fs = DEFAULT_SAMPLE_RATE  # Sample rate (adjust as necessary)
     lowcut = 300.0  # Low cutoff frequency
     highcut = 3000.0  # High cutoff frequency
     filtered_envelope = bandpass_filter(envelope, lowcut, highcut, fs)
