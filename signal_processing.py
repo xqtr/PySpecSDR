@@ -250,14 +250,16 @@ def compute_fft(samples):
     fft = np.fft.fftshift(np.fft.fft(windowed_samples))
 
     # Convert to power spectrum in dB, with proper scaling
-    power_db = 20 * np.log10(np.abs(fft) + 1e-10)
+    #power_db = 20 * np.log10(np.abs(fft) + 1e-10)
 
     # Apply calibration factors
-    system_gain = -30  # Adjustment for system gain
-    ref_level = -70   # Reference level adjustment
+    #system_gain = -30  # Adjustment for system gain
+    #ref_level = -70   # Reference level adjustment
 
     # Apply calibration and clip to reasonable range
-    power_db = np.clip(power_db + system_gain + ref_level, -100, -20)
+    #power_db = np.clip(power_db + system_gain + ref_level, -100, -20)
+    
+    power_db = 10 * np.log10(np.abs(fft)**2 + 1e-10)
 
     return power_db
 
