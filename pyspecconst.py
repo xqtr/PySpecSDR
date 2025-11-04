@@ -1,5 +1,8 @@
+
+# Optimized values for Raspberry Pi 02W
 DEFAULT_SAMPLE_RATE = 22050
 DEFAULT_BLOCK_SIZE = 8192
+BUTTER_ORDER = 5  # Change to 10 for better quality
 
 MR_BANDS = {
 "CB": {

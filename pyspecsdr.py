@@ -1760,7 +1760,7 @@ class SDRDevice:
     def __init__(self, backend='SOAPY', stdscr=None):
         self.backend = backend
         self.device = None
-        self.sample_rate = 2.048e6
+        self.sample_rate = 1.024e6
         self.center_freq = 100e6
         self.gain = 20
         self.bandwidth = 2e6
@@ -2222,6 +2222,7 @@ def main(stdscr, startup_freq=None, video_mode="SPECTRUM", device=None):
 
         # Enable non-blocking input
         stdscr.nodelay(True)
+        ui_update_counter = 0
 
         while True:
             try:
@@ -2285,31 +2286,33 @@ def main(stdscr, startup_freq=None, video_mode="SPECTRUM", device=None):
                 recording_duration = time.time() - recording_start_time if audio_recording else None
 
                 if CURRENT_MODE == 'VFO':
-                    draw_header(stdscr, freq_data, freq_bins, sdr.center_freq, bandwidth, sdr.gain, freq_step, sdr, audio_recording, recording_duration)
+                    ui_update_counter += 1
+                    if ui_update_counter % 3 == 0:
+                        draw_header(stdscr, freq_data, freq_bins, sdr.center_freq, bandwidth, sdr.gain, freq_step, sdr, audio_recording, recording_duration)
 
-                    if current_display_mode == 'SPECTRUM':
-                        draw_spectrogram(stdscr, freq_data, freq_bins, sdr.center_freq, 
-                                       bandwidth, sdr.gain, freq_step, sdr,  # Add sdr here
-                                       audio_recording, recording_duration)
-                    elif current_display_mode == 'WATERFALL':
-                        draw_waterfall(stdscr, freq_data, freq_bins, sdr.center_freq, 
-                                     bandwidth, sdr.gain, freq_step, sdr,  # Add sdr here
-                                     audio_recording, recording_duration)
-                    elif current_display_mode == 'PERSISTENCE':
-                        draw_persistence(stdscr, freq_data, freq_bins, sdr.center_freq,
-                                       bandwidth, sdr.gain, freq_step, sdr,  # Add sdr here
-                                       audio_recording, recording_duration)
-                    elif current_display_mode == 'SURFACE':
-                        draw_surface_plot(stdscr, freq_data, freq_bins, sdr.center_freq,
-                                      bandwidth, sdr.gain, freq_step, sdr,  # Add sdr here
-                                      audio_recording, recording_duration)
-                    elif current_display_mode == 'GRADIENT':
-                        draw_gradient_waterfall(stdscr, freq_data, freq_bins, sdr.center_freq,
-                                               bandwidth, sdr.gain, freq_step, sdr,
-                                               audio_recording, recording_duration)
-                    elif current_display_mode == 'VECTOR':
-                        draw_vector_display(stdscr, samples, sdr.center_freq,
-                                       bandwidth, sdr.gain, freq_step, sdr)
+                        if current_display_mode == 'SPECTRUM':
+                            draw_spectrogram(stdscr, freq_data, freq_bins, sdr.center_freq, 
+                                           bandwidth, sdr.gain, freq_step, sdr,  # Add sdr here
+                                           audio_recording, recording_duration)
+                        elif current_display_mode == 'WATERFALL':
+                            draw_waterfall(stdscr, freq_data, freq_bins, sdr.center_freq, 
+                                         bandwidth, sdr.gain, freq_step, sdr,  # Add sdr here
+                                         audio_recording, recording_duration)
+                        elif current_display_mode == 'PERSISTENCE':
+                            draw_persistence(stdscr, freq_data, freq_bins, sdr.center_freq,
+                                           bandwidth, sdr.gain, freq_step, sdr,  # Add sdr here
+                                           audio_recording, recording_duration)
+                        elif current_display_mode == 'SURFACE':
+                            draw_surface_plot(stdscr, freq_data, freq_bins, sdr.center_freq,
+                                          bandwidth, sdr.gain, freq_step, sdr,  # Add sdr here
+                                          audio_recording, recording_duration)
+                        elif current_display_mode == 'GRADIENT':
+                            draw_gradient_waterfall(stdscr, freq_data, freq_bins, sdr.center_freq,
+                                                   bandwidth, sdr.gain, freq_step, sdr,
+                                                   audio_recording, recording_duration)
+                        elif current_display_mode == 'VECTOR':
+                            draw_vector_display(stdscr, samples, sdr.center_freq,
+                                           bandwidth, sdr.gain, freq_step, sdr)
 
                 # Handle user input
                 key = stdscr.getch()
@@ -2365,13 +2368,16 @@ def main(stdscr, startup_freq=None, video_mode="SPECTRUM", device=None):
                         sdr.set_center_freq(max(0, sdr.center_freq - 1e6))
                     elif key == curses.KEY_RIGHT:  # Increase frequency by 0.5 MHz
                         sdr.set_center_freq(sdr.center_freq + 0.5e6)
+                        ui_update_counter = 0
                     elif key == curses.KEY_LEFT:  # Decrease frequency by 0.5 MHz
                         sdr.set_center_freq(max(0, sdr.center_freq - 0.5e6))
+                        ui_update_counter = 0
                     elif key == ord('v'):
                         CURRENT_MODE = 'MR'
                         draw_mr_mode(stdscr,sdr)
                         continue
                     elif key == ord('x'):  # Set Frequency
+                        ui_update_counter = 0
                         freq = setfreq(stdscr)
                         if freq:
                             if freq[-1] in 'mM  ':

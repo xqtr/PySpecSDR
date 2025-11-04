@@ -6,7 +6,7 @@ from scipy.signal import decimate
 from scipy.signal import bilinear
 from scipy.signal import resample_poly
 
-from pyspecconst import DEFAULT_SAMPLE_RATE
+from pyspecconst import DEFAULT_SAMPLE_RATE, BUTTER_ORDER
 
 
 # Filter to cut freq below/higher than 300/3000hz
@@ -36,9 +36,9 @@ def bandpass_filter(data, lowcut, highcut, sample_rate):
     from scipy.signal import butter, sosfilt
     if lowcut <= 0:
         # Use a lowpass filter if lowcut is not valid
-        sos = butter(10, highcut / (sample_rate / 2), btype='low', output='sos')
+        sos = butter(BUTTER_ORDER, highcut / (sample_rate / 2), btype='low', output='sos')
     else:
-        sos = butter(10, [lowcut / (sample_rate / 2), highcut / (sample_rate / 2)], btype='band', output='sos')
+        sos = butter(BUTTER_ORDER, [lowcut / (sample_rate / 2), highcut / (sample_rate / 2)], btype='band', output='sos')
     return sosfilt(sos, data)
 
 
@@ -219,7 +219,11 @@ def demodulate_ssb(samples, sample_rate, lower=True):
 
 def demodulate_signal(samples, sample_rate, mode='NFM'):
     """Advanced demodulation function supporting multiple modes"""
-    samples = iq_correction(samples)
+    if mode in ['NFM', 'AM', 'USB', 'LSB']:
+        pass  # Skip for voice
+    else:
+        samples = iq_correction(samples)
+
     if mode == 'NFM':
         return demodulate_nfm(samples, sample_rate)
     elif mode == 'WFM':
