@@ -1,4 +1,5 @@
 import os
+import numpy as np
 
 PIPE_PATH = "/tmp/sdrpipe"
 PIPE_FILE = None
